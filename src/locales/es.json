@@ -1,0 +1,108 @@
+{
+  "common": {
+    "appName": "AprendeUSA AVA",
+    "tagline": "Ambiente Virtual de Aprendizaje para la Comunidad Inmigrante",
+    "search": "Buscar cursos, lecciones, materiales...",
+    "notifications": "Notificaciones",
+    "userRole": "Estudiante",
+    "switchLanguage": "Idioma",
+    "back": "Volver",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "status": {
+      "completed": "Completado",
+      "inProgress": "En curso",
+      "notStarted": "No iniciado"
+    }
+  },
+  "languages": {
+    "pt": "Português",
+    "en": "English",
+    "es": "Español"
+  },
+  "login": {
+    "title": "Bienvenido a AprendeUSA",
+    "subtitle": "Tu puente hacia el éxito educativo y profesional en los Estados Unidos",
+    "emailLabel": "Correo Electrónico o Documento",
+    "emailPlaceholder": "tu.correo@ejemplo.com",
+    "passwordLabel": "Contraseña",
+    "passwordPlaceholder": "••••••••",
+    "rememberMe": "Recordarme en este dispositivo",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "submitButton": "Ingresar a la Plataforma",
+    "noAccount": "¿Aún no eres miembro?",
+    "register": "Regístrate gratis",
+    "guestDemo": "Entrar en Modo Demostración",
+    "securityNote": "Ambiente seguro y confidencial. Tus datos están protegidos bajo las leyes de privacidad de EE. UU."
+  },
+  "sidebar": {
+    "dashboard": "Panel Principal",
+    "teacherCourses": "Gestión de Cursos",
+    "teacherCurriculum": "Malla Curricular",
+    "teacherLessons": "Crear Nueva Lección",
+    "teacherAssessments": "Evaluaciones y Quizzes",
+    "teacherAnalytics": "Rendimiento del Grupo",
+    "teacherStudents": "Gestión de Alumnos",
+    "teacherTeam": "Equipo & Control de Acceso",
+    "myCourses": "Mis Cursos",
+    "classroom": "Aula Virtual",
+    "community": "Comunidad & Networking",
+    "legalSupport": "Guía del Inmigrante & Derechos",
+    "resources": "Biblioteca & Documentos",
+    "settings": "Ajustes de Cuenta",
+    "helpDesk": "Soporte Multilingüe",
+    "logout": "Cerrar Sesión",
+    "quickStats": "Tu Progreso Semanal",
+    "progressLabel": "Metas alcanzadas"
+  },
+  "dashboard": {
+    "welcomeBanner": {
+      "greeting": "¡Hola, {{name}}!",
+      "message": "Continúa tu camino de adaptación e inserción profesional en los EE. UU.",
+      "cta": "Continuar Lección Actual"
+    },
+    "metrics": {
+      "enrolledCourses": "Cursos Activos",
+      "completedHours": "Horas Estudiadas",
+      "certificates": "Certificados Obtenidos",
+      "communityRank": "Puntos de Participación"
+    },
+    "recommendedSection": {
+      "title": "Rutas Esenciales para Inmigrantes",
+      "subtitle": "Habilidades prácticas centradas en el dominio del inglés, derechos laborales y crecimiento laboral"
+    },
+    "recentActivity": {
+      "title": "Actividades Recientes",
+      "viewAll": "Ver historial completo"
+    },
+    "upcomingLive": {
+      "title": "Próximas Sesiones de Dudas en Vivo",
+      "join": "Entrar a la Sala"
+    }
+  },
+  "classroom": {
+    "title": "Visualización de Lección",
+    "currentModule": "Módulo 2: Derechos Laborales y Leyes de Inmigración Básicas",
+    "lessonTitle": "Entendiendo los Formularios W-2, 1099 y Derechos en el Trabajo",
+    "instructor": "Dra. Elena Vásquez, Abogada & Educadora",
+    "duration": "24 minutos",
+    "markCompleted": "Marcar como Completada",
+    "completedBadge": "Lección Completada",
+    "tabs": {
+      "overview": "Visión General",
+      "transcription": "Transcripción y Traducción",
+      "resources": "Materiales Descargables",
+      "notes": "Mis Apuntes",
+      "qa": "Preguntas y Respuestas"
+    },
+    "transcriptionNotice": "La transcripción y los subtítulos se adaptan automáticamente al idioma seleccionado en el sistema.",
+    "resourcesList": {
+      "guidePdf": "Guía Práctica de Derechos Laborales en EE. UU. (PDF)",
+      "glossaryPdf": "Glosario de Términos en Inglés para el Trabajo (PDF)"
+    },
+    "navigation": {
+      "prevLesson": "Lección Anterior",
+      "nextLesson": "Siguiente Lección"
+    }
+  }
+}

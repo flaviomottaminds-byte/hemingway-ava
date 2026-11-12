@@ -1,0 +1,108 @@
+{
+  "common": {
+    "appName": "AprendeUSA LMS",
+    "tagline": "Virtual Learning Environment for the Immigrant Community",
+    "search": "Search courses, lessons, materials...",
+    "notifications": "Notifications",
+    "userRole": "Student",
+    "switchLanguage": "Language",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "status": {
+      "completed": "Completed",
+      "inProgress": "In Progress",
+      "notStarted": "Not Started"
+    }
+  },
+  "languages": {
+    "pt": "Português",
+    "en": "English",
+    "es": "Español"
+  },
+  "login": {
+    "title": "Welcome to AprendeUSA",
+    "subtitle": "Your bridge to educational and professional success in the United States",
+    "emailLabel": "Email or ID Document",
+    "emailPlaceholder": "your.email@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "••••••••",
+    "rememberMe": "Remember me on this device",
+    "forgotPassword": "Forgot password?",
+    "submitButton": "Sign In to Platform",
+    "noAccount": "Don't have an account yet?",
+    "register": "Sign up for free",
+    "guestDemo": "Enter in Demo Mode",
+    "securityNote": "Secure and confidential environment. Your data is protected under U.S. privacy laws."
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "teacherCourses": "Course Management",
+    "teacherCurriculum": "Curriculum & Disciplines",
+    "teacherLessons": "Create New Lesson",
+    "teacherAssessments": "Assessments & Quizzes",
+    "teacherAnalytics": "Class Performance",
+    "teacherStudents": "Students & Enrollments",
+    "teacherTeam": "Team & Access Control",
+    "myCourses": "My Courses",
+    "classroom": "Classroom",
+    "community": "Community & Networking",
+    "legalSupport": "Immigrant Guide & Rights",
+    "resources": "Library & Documents",
+    "settings": "Account Settings",
+    "helpDesk": "Multilingual Support",
+    "logout": "Log Out",
+    "quickStats": "Your Weekly Progress",
+    "progressLabel": "Goals achieved"
+  },
+  "dashboard": {
+    "welcomeBanner": {
+      "greeting": "Hello, {{name}}!",
+      "message": "Continue your path towards career readiness and cultural adaptation in the US.",
+      "cta": "Resume Current Lesson"
+    },
+    "metrics": {
+      "enrolledCourses": "Active Courses",
+      "completedHours": "Hours Studied",
+      "certificates": "Certificates Earned",
+      "communityRank": "Engagement Points"
+    },
+    "recommendedSection": {
+      "title": "Essential Tracks for Immigrants",
+      "subtitle": "Practical skills focusing on English proficiency, labor rights, and career growth"
+    },
+    "recentActivity": {
+      "title": "Recent Activity",
+      "viewAll": "View full history"
+    },
+    "upcomingLive": {
+      "title": "Upcoming Live Q&A Sessions",
+      "join": "Join Room"
+    }
+  },
+  "classroom": {
+    "title": "Lesson View",
+    "currentModule": "Module 2: Workplace Rights and Fundamental Immigration Law",
+    "lessonTitle": "Understanding W-2, 1099 Tax Forms, and Workplace Rights",
+    "instructor": "Dr. Elena Vasquez, Attorney & Educator",
+    "duration": "24 minutes",
+    "markCompleted": "Mark as Completed",
+    "completedBadge": "Lesson Completed",
+    "tabs": {
+      "overview": "Overview",
+      "transcription": "Transcript & Translation",
+      "resources": "Downloadable Files",
+      "notes": "My Notes",
+      "qa": "Q&A Discussion"
+    },
+    "transcriptionNotice": "The transcript and subtitles automatically match the language selected in the system.",
+    "resourcesList": {
+      "guidePdf": "Practical US Labor Rights Guide (PDF)",
+      "glossaryPdf": "English Workplace Vocabulary Glossary (PDF)"
+    },
+    "navigation": {
+      "prevLesson": "Previous Lesson",
+      "nextLesson": "Next Lesson"
+    }
+  }
+}

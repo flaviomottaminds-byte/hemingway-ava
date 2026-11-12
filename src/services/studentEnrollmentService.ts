@@ -1,0 +1,555 @@
+import type {
+  SupabaseStudent,
+  SupabaseEnrollment,
+  SupabaseCourse,
+  StudentStatus,
+  EnrollmentStatus,
+} from '../types'
+import { courseService } from './courseService'
+import { supabase } from '../lib/supabase'
+
+const STORAGE_KEY_STUDENTS = 'ava_supabase_students_directory'
+const STORAGE_KEY_ENROLLMENTS = 'ava_supabase_enrollments'
+
+const INITIAL_STUDENTS: SupabaseStudent[] = [
+  {
+    id: 'std-01',
+    name: 'Mateo Silva Santos',
+    email: 'mateo.silva@exemplo.com',
+    document_id: '123.456.789-00', // CPF / ITIN 987-65-4321
+    phone: '+1 (407) 555-0192',
+    avatar_url:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+    status: 'active',
+    temporary_password: 'Pass2026@Mateo',
+    created_at: '2026-01-10T10:00:00Z',
+  },
+  {
+    id: 'std-02',
+    name: 'Gabriela Ortiz Morales',
+    email: 'gabriela.ortiz@exemplo.com',
+    document_id: '987.654.321-11',
+    phone: '+1 (305) 555-0144',
+    avatar_url:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=250&q=80',
+    status: 'active',
+    temporary_password: 'Pass2026@Gabi',
+    created_at: '2026-01-15T11:20:00Z',
+  },
+  {
+    id: 'std-03',
+    name: 'Juan Carlos Ramirez',
+    email: 'jc.ramirez@exemplo.com',
+    document_id: '456.789.123-22',
+    phone: '+1 (713) 555-0188',
+    avatar_url:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80',
+    status: 'inactive',
+    temporary_password: 'Pass2026@Juan',
+    created_at: '2026-01-20T14:30:00Z',
+  },
+  {
+    id: 'std-04',
+    name: 'Beatriz Albuquerque Lima',
+    email: 'beatriz.lima@exemplo.com',
+    document_id: '789.123.456-33',
+    phone: '+1 (617) 555-0176',
+    avatar_url:
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=250&q=80',
+    status: 'active',
+    temporary_password: 'Pass2026@Bia',
+    created_at: '2026-01-25T09:10:00Z',
+  },
+  {
+    id: 'std-05',
+    name: 'Carlos Mendoza Vasquez',
+    email: 'carlos.mendoza@exemplo.com',
+    document_id: '321.654.987-44',
+    phone: '+1 (404) 555-0131',
+    avatar_url:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80',
+    status: 'active',
+    temporary_password: 'Pass2026@Carlos',
+    created_at: '2026-02-01T15:40:00Z',
+  },
+  {
+    id: 'std-06',
+    name: 'Sofia Navarro Castillo',
+    email: 'sofia.navarro@exemplo.com',
+    document_id: '654.987.321-55',
+    phone: '+1 (213) 555-0165',
+    avatar_url:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=250&q=80',
+    status: 'inactive',
+    temporary_password: 'Pass2026@Sofia',
+    created_at: '2026-02-05T16:15:00Z',
+  },
+  {
+    id: 'std-07',
+    name: 'Lucas Ferreira Diniz',
+    email: 'lucas.diniz@exemplo.com',
+    document_id: '159.357.486-66',
+    phone: '+1 (973) 555-0128',
+    avatar_url:
+      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=250&q=80',
+    status: 'active',
+    temporary_password: 'Pass2026@Lucas',
+    created_at: '2026-02-10T12:00:00Z',
+  },
+]
+
+const INITIAL_ENROLLMENTS: SupabaseEnrollment[] = [
+  // Mateo Silva em 2 cursos
+  {
+    id: 'enr-01',
+    student_id: 'std-01',
+    course_id: 'crs-101',
+    status: 'active',
+    enrolled_at: '2026-01-12T10:00:00Z',
+  },
+  {
+    id: 'enr-02',
+    student_id: 'std-01',
+    course_id: 'crs-102',
+    status: 'active',
+    enrolled_at: '2026-01-15T14:00:00Z',
+  },
+
+  // Gabriela Ortiz
+  {
+    id: 'enr-03',
+    student_id: 'std-02',
+    course_id: 'crs-102',
+    status: 'completed',
+    enrolled_at: '2026-01-18T09:30:00Z',
+  },
+  {
+    id: 'enr-04',
+    student_id: 'std-02',
+    course_id: 'crs-103',
+    status: 'active',
+    enrolled_at: '2026-02-01T11:00:00Z',
+  },
+
+  // Juan Carlos Ramirez
+  {
+    id: 'enr-05',
+    student_id: 'std-03',
+    course_id: 'crs-102',
+    status: 'blocked',
+    enrolled_at: '2026-01-22T16:00:00Z',
+  },
+
+  // Beatriz Lima
+  {
+    id: 'enr-06',
+    student_id: 'std-04',
+    course_id: 'crs-101',
+    status: 'active',
+    enrolled_at: '2026-01-26T10:15:00Z',
+  },
+  {
+    id: 'enr-07',
+    student_id: 'std-04',
+    course_id: 'crs-104',
+    status: 'active',
+    enrolled_at: '2026-02-05T13:45:00Z',
+  },
+
+  // Carlos Mendoza
+  {
+    id: 'enr-08',
+    student_id: 'std-05',
+    course_id: 'crs-101',
+    status: 'active',
+    enrolled_at: '2026-02-02T08:30:00Z',
+  },
+]
+
+export interface CreateStudentDTO {
+  name: string
+  email: string
+  document_id: string
+  phone: string
+  temporary_password?: string
+  status?: StudentStatus
+  avatar_url?: string
+}
+
+export interface EnrolledCourseView {
+  enrollment: SupabaseEnrollment
+  course: SupabaseCourse
+}
+
+class StudentEnrollmentService {
+  private loadStudents(): SupabaseStudent[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_STUDENTS)
+      if (data) return JSON.parse(data)
+    } catch (e) {
+      console.warn('Erro ao carregar diretório de estudantes:', e)
+    }
+    this.saveStudents(INITIAL_STUDENTS)
+    return INITIAL_STUDENTS
+  }
+
+  private saveStudents(items: SupabaseStudent[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(items))
+    } catch (e) {
+      console.error('Erro ao salvar estudantes no localStorage:', e)
+    }
+  }
+
+  private loadEnrollments(): SupabaseEnrollment[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_ENROLLMENTS)
+      if (data) return JSON.parse(data)
+    } catch (e) {
+      console.warn('Erro ao carregar matrículas:', e)
+    }
+    this.saveEnrollments(INITIAL_ENROLLMENTS)
+    return INITIAL_ENROLLMENTS
+  }
+
+  private saveEnrollments(items: SupabaseEnrollment[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEY_ENROLLMENTS, JSON.stringify(items))
+    } catch (e) {
+      console.error('Erro ao salvar matrículas no localStorage:', e)
+    }
+  }
+
+  /**
+   * Consulta alunos reais na tabela profiles com role = 'aluno' no Supabase
+   */
+  async getStudents(query?: string): Promise<SupabaseStudent[]> {
+    let list: SupabaseStudent[] = []
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'aluno')
+
+      if (!error && data && data.length > 0) {
+        list = data.map((item: Record<string, unknown>, idx: number) => {
+          return {
+            id: String(item.id || `std-${idx}`),
+            name: String(item.name || 'Aluno Sem Nome'),
+            email: String(item.email || ''),
+            document_id: String(item.document_number || item.document_id || 'DOC-USA-2026'),
+            document_type: String(item.document_type || 'Passaporte'),
+            document_number: String(item.document_number || item.document_id || ''),
+            phone: String(item.phone || '+1 (407) 555-0100'),
+            avatar_url:
+              String(item.avatar_url || '') ||
+              `https://images.unsplash.com/photo-${1534528741775 + idx * 50}?auto=format&fit=crop&w=250&q=80`,
+            status: (item.status as StudentStatus) || 'active',
+            temporary_password: String(item.temporary_password || 'Pass2026@Aluno'),
+            created_at: String(item.created_at || new Date().toISOString()),
+          }
+        })
+        this.saveStudents(list)
+      } else {
+        if (error) {
+          console.warn('Supabase profiles (aluno) warning:', error)
+        }
+        list = this.loadStudents()
+      }
+    } catch (err) {
+      console.warn('Falha na consulta ao Supabase profiles:', err)
+      list = this.loadStudents()
+    }
+
+    if (query?.trim()) {
+      const q = query.trim().toLowerCase()
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.email.toLowerCase().includes(q) ||
+          s.document_id.toLowerCase().includes(q) ||
+          s.phone.toLowerCase().includes(q),
+      )
+    }
+    return list
+  }
+
+  /**
+   * Grava novo aluno executando INSERT na tabela profiles com role = 'aluno'
+   */
+  async createStudent(dto: CreateStudentDTO): Promise<SupabaseStudent> {
+    const list = this.loadStudents()
+
+    const newStudent: SupabaseStudent = {
+      id: `std-${Date.now().toString(36)}`,
+      name: dto.name.trim(),
+      email: dto.email.trim().toLowerCase(),
+      document_id: dto.document_id.trim(),
+      document_type: 'Passaporte',
+      document_number: dto.document_id.trim(),
+      phone: dto.phone.trim(),
+      status: dto.status || 'active',
+      temporary_password: dto.temporary_password || 'Pass2026@Aluno',
+      avatar_url:
+        dto.avatar_url?.trim() ||
+        `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 5000)}?auto=format&fit=crop&w=250&q=80`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            name: dto.name.trim(),
+            email: dto.email.trim().toLowerCase(),
+            role: 'aluno',
+            document_type: 'Passaporte',
+            document_number: dto.document_id.trim(),
+          },
+        ])
+        .select()
+        .single()
+
+      if (!error && data) {
+        newStudent.id = String(data.id || newStudent.id)
+      } else if (error) {
+        console.warn('Erro ao inserir aluno no Supabase profiles:', error)
+      }
+    } catch (err) {
+      console.warn('Falha na requisição ao Supabase profiles:', err)
+    }
+
+    const updated = [newStudent, ...list]
+    this.saveStudents(updated)
+    return newStudent
+  }
+
+  /**
+   * Atualiza aluno em profiles no Supabase
+   */
+  async updateStudent(
+    id: string,
+    dto: Partial<CreateStudentDTO>,
+  ): Promise<SupabaseStudent> {
+    const list = this.loadStudents()
+    const index = list.findIndex((s) => s.id === id)
+    if (index === -1) {
+      throw new Error(`Estudante com id ${id} não encontrado.`)
+    }
+
+    try {
+      const updatePayload: Record<string, unknown> = {}
+      if (dto.name) updatePayload.name = dto.name.trim()
+      if (dto.email) updatePayload.email = dto.email.trim().toLowerCase()
+      if (dto.document_id) {
+        updatePayload.document_number = dto.document_id.trim()
+      }
+
+      if (Object.keys(updatePayload).length > 0) {
+        await supabase.from('profiles').update(updatePayload).eq('id', id)
+      }
+    } catch (err) {
+      console.warn('Aviso ao atualizar aluno no Supabase profiles:', err)
+    }
+
+    const current = list[index]
+    const updatedStudent: SupabaseStudent = {
+      ...current,
+      ...(dto.name !== undefined && { name: dto.name.trim() }),
+      ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase() }),
+      ...(dto.document_id !== undefined && {
+        document_id: dto.document_id.trim(),
+        document_number: dto.document_id.trim(),
+      }),
+      ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+      ...(dto.status !== undefined && { status: dto.status }),
+      ...(dto.temporary_password !== undefined && {
+        temporary_password: dto.temporary_password,
+      }),
+      ...(dto.avatar_url !== undefined && { avatar_url: dto.avatar_url }),
+      updated_at: new Date().toISOString(),
+    }
+
+    list[index] = updatedStudent
+    this.saveStudents(list)
+    return updatedStudent
+  }
+
+  /**
+   * Remove aluno do profiles e desmatricula de enrollments
+   */
+  async deleteStudent(id: string): Promise<boolean> {
+    try {
+      await supabase.from('enrollments').delete().eq('student_id', id)
+      await supabase.from('profiles').delete().eq('id', id)
+    } catch (err) {
+      console.warn('Aviso ao excluir aluno do Supabase:', err)
+    }
+
+    const list = this.loadStudents()
+    this.saveStudents(list.filter((s) => s.id !== id))
+
+    // Remove matrículas vinculadas
+    const enrollments = this.loadEnrollments()
+    this.saveEnrollments(enrollments.filter((e) => e.student_id !== id))
+    return true
+  }
+
+  /**
+   * Consulta as matrículas do aluno trazendo os dados do curso vinculado:
+   * supabase.from('enrollments').select('*').eq('student_id', studentId)
+   */
+  async getStudentEnrollments(studentId: string): Promise<EnrolledCourseView[]> {
+    let enrollments: SupabaseEnrollment[] = []
+
+    try {
+      const { data, error } = await supabase
+        .from('enrollments')
+        .select('*')
+        .eq('student_id', studentId)
+
+      if (!error && data && data.length > 0) {
+        enrollments = data.map((item: Record<string, unknown>, idx: number) => ({
+          id: String(item.id || `enr-supa-${idx}`),
+          student_id: String(item.student_id || studentId),
+          course_id: String(item.course_id || ''),
+          status: (item.status as EnrollmentStatus) || 'active',
+          enrolled_at: String(item.enrolled_at || new Date().toISOString()),
+        }))
+      } else {
+        enrollments = this.loadEnrollments().filter((e) => e.student_id === studentId)
+      }
+    } catch (err) {
+      console.warn('Aviso ao consultar Supabase enrollments:', err)
+      enrollments = this.loadEnrollments().filter((e) => e.student_id === studentId)
+    }
+
+    const courses = await courseService.getCourses()
+    const courseMap = new Map(courses.map((c) => [c.id, c]))
+
+    const result: EnrolledCourseView[] = []
+    for (const enr of enrollments) {
+      const course = courseMap.get(enr.course_id)
+      if (course) {
+        result.push({ enrollment: enr, course })
+      }
+    }
+    return result
+  }
+
+  /**
+   * Matricular aluno em novo curso:
+   * supabase.from('enrollments').insert({ student_id, course_id, status: 'active', enrolled_at })
+   */
+  async enrollStudent(
+    studentId: string,
+    courseId: string,
+    status: EnrollmentStatus = 'active',
+  ): Promise<SupabaseEnrollment> {
+    const enrollments = this.loadEnrollments()
+
+    // Verifica se já está matriculado localmente
+    const existing = enrollments.find(
+      (e) => e.student_id === studentId && e.course_id === courseId,
+    )
+    if (existing) {
+      throw new Error('O aluno já está matriculado neste curso.')
+    }
+
+    const newEnrollment: SupabaseEnrollment = {
+      id: `enr-${Date.now().toString(36)}`,
+      student_id: studentId,
+      course_id: courseId,
+      status,
+      enrolled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('enrollments')
+        .insert([
+          {
+            student_id: studentId,
+            course_id: courseId,
+            status,
+            enrolled_at: newEnrollment.enrolled_at,
+          },
+        ])
+        .select()
+        .single()
+
+      if (!error && data) {
+        newEnrollment.id = String(data.id || newEnrollment.id)
+      } else if (error) {
+        console.warn('Erro ao inserir matrícula no Supabase:', error)
+      }
+    } catch (err) {
+      console.warn('Falha na requisição ao Supabase enrollments:', err)
+    }
+
+    const updated = [newEnrollment, ...enrollments]
+    this.saveEnrollments(updated)
+    return newEnrollment
+  }
+
+  /**
+   * Atualizar status da matrícula (Ativo, Concluído, Bloqueado)
+   */
+  async updateEnrollmentStatus(
+    enrollmentId: string,
+    newStatus: EnrollmentStatus,
+  ): Promise<SupabaseEnrollment> {
+    try {
+      await supabase
+        .from('enrollments')
+        .update({ status: newStatus })
+        .eq('id', enrollmentId)
+    } catch (err) {
+      console.warn('Aviso ao atualizar status no Supabase enrollments:', err)
+    }
+
+    const enrollments = this.loadEnrollments()
+    const index = enrollments.findIndex((e) => e.id === enrollmentId)
+    if (index === -1) {
+      throw new Error(`Matrícula com id ${enrollmentId} não encontrada.`)
+    }
+
+    const current = enrollments[index]
+    const updated: SupabaseEnrollment = {
+      ...current,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    }
+    enrollments[index] = updated
+    this.saveEnrollments(enrollments)
+    return updated
+  }
+
+  /**
+   * Remover matrícula (desmatricular do curso):
+   * supabase.from('enrollments').delete().eq('id', enrollmentId)
+   */
+  async removeEnrollment(enrollmentId: string): Promise<boolean> {
+    try {
+      await supabase.from('enrollments').delete().eq('id', enrollmentId)
+    } catch (err) {
+      console.warn('Aviso ao excluir matrícula do Supabase enrollments:', err)
+    }
+
+    const enrollments = this.loadEnrollments()
+    const filtered = enrollments.filter((e) => e.id !== enrollmentId)
+    this.saveEnrollments(filtered)
+    return true
+  }
+
+  resetDefaults(): void {
+    this.saveStudents(INITIAL_STUDENTS)
+    this.saveEnrollments(INITIAL_ENROLLMENTS)
+  }
+}
+
+export const studentEnrollmentService = new StudentEnrollmentService()

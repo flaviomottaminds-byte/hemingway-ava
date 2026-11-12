@@ -1,0 +1,108 @@
+{
+  "common": {
+    "appName": "AprendeUSA AVA",
+    "tagline": "Ambiente Virtual de Aprendizagem para a Comunidade Imigrante",
+    "search": "Buscar cursos, aulas, materiais...",
+    "notifications": "Notificações",
+    "userRole": "Estudante",
+    "switchLanguage": "Idioma",
+    "back": "Voltar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "status": {
+      "completed": "Concluído",
+      "inProgress": "Em andamento",
+      "notStarted": "Não iniciado"
+    }
+  },
+  "languages": {
+    "pt": "Português",
+    "en": "English",
+    "es": "Español"
+  },
+  "login": {
+    "title": "Boas-vindas ao AprendeUSA",
+    "subtitle": "Sua ponte para o sucesso educacional e profissional nos Estados Unidos",
+    "emailLabel": "E-mail ou Documento",
+    "emailPlaceholder": "seu.email@exemplo.com",
+    "passwordLabel": "Senha",
+    "passwordPlaceholder": "••••••••",
+    "rememberMe": "Lembrar de mim neste dispositivo",
+    "forgotPassword": "Esqueceu sua senha?",
+    "submitButton": "Entrar na Plataforma",
+    "noAccount": "Ainda não faz parte?",
+    "register": "Cadastre-se gratuitamente",
+    "guestDemo": "Entrar no Modo Demonstração",
+    "securityNote": "Ambiente seguro e confidencial. Seus dados estão protegidos sob a legislação norte-americana."
+  },
+  "sidebar": {
+    "dashboard": "Painel Principal",
+    "teacherCourses": "Gestão de Cursos",
+    "teacherCurriculum": "Grade Curricular",
+    "teacherLessons": "Criar Nova Aula",
+    "teacherAssessments": "Avaliações & Quizzes",
+    "teacherAnalytics": "Desempenho da Turma",
+    "teacherStudents": "Gestão de Alunos",
+    "teacherTeam": "Equipe & Controle de Acesso",
+    "myCourses": "Meus Cursos",
+    "classroom": "Sala de Aula",
+    "community": "Comunidade & Networking",
+    "legalSupport": "Guia do Imigrante & Direitos",
+    "resources": "Biblioteca & Documentos",
+    "settings": "Configurações da Conta",
+    "helpDesk": "Suporte Multilíngue",
+    "logout": "Sair da Conta",
+    "quickStats": "Seu Progresso Semanal",
+    "progressLabel": "Metas alcançadas"
+  },
+  "dashboard": {
+    "welcomeBanner": {
+      "greeting": "Olá, {{name}}!",
+      "message": "Continue sua trilha de adaptação e qualificação profissional nos EUA.",
+      "cta": "Continuar Aula Atual"
+    },
+    "metrics": {
+      "enrolledCourses": "Cursos Ativos",
+      "completedHours": "Horas Estudadas",
+      "certificates": "Certificados Obtidos",
+      "communityRank": "Pontos de Engajamento"
+    },
+    "recommendedSection": {
+      "title": "Trilhas Essenciais para Imigrantes",
+      "subtitle": "Conteúdos práticos focados em adaptação, língua e mercado norte-americano"
+    },
+    "recentActivity": {
+      "title": "Atividades Recentes",
+      "viewAll": "Ver histórico completo"
+    },
+    "upcomingLive": {
+      "title": "Próximos Plantões de Dúvidas ao Vivo",
+      "join": "Entrar na Sala"
+    }
+  },
+  "classroom": {
+    "title": "Visualização de Aulas",
+    "currentModule": "Módulo 2: Direitos Trabalhistas e Leis de Imigração Básicas",
+    "lessonTitle": "Compreendendo o Formulário W-2, 1099 e Direitos no Trabalho",
+    "instructor": "Dra. Elena Vasquez, Advogada & Educadora",
+    "duration": "24 minutos",
+    "markCompleted": "Marcar como Concluída",
+    "completedBadge": "Aula Finalizada",
+    "tabs": {
+      "overview": "Visão Geral",
+      "transcription": "Transcrição e Tradução",
+      "resources": "Materiais para Download",
+      "notes": "Minhas Anotações",
+      "qa": "Perguntas & Respostas"
+    },
+    "transcriptionNotice": "A transcrição e as legendas acompanham automaticamente o idioma selecionado no sistema.",
+    "resourcesList": {
+      "guidePdf": "Guia Prático de Direitos Trabalhistas nos EUA (PDF)",
+      "glossaryPdf": "Glossário de Termos em Inglês para o Trabalho (PDF)"
+    },
+    "navigation": {
+      "prevLesson": "Aula Anterior",
+      "nextLesson": "Próxima Aula"
+    }
+  }
+}
