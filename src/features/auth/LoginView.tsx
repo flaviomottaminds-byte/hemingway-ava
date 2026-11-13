@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase'
 import type { UserProfile } from '../../types'
 import { mockUser } from '../../services/mockData'
 import { ForgotPasswordModal } from './ForgotPasswordModal'
+import { resolveUserRole } from '../../lib/roleUtils'
 
 interface LoginViewProps {
   onLoginSuccess: (profile?: UserProfile) => void
@@ -136,15 +137,28 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         if (signUpData?.user) {
           const authId = signUpData.user.id
-          // Cria registro na tabela profiles vinculada ao ID do Auth
+
+          // Consulta se já existe perfil no banco para não rebaixar role de admin/teacher
+          let roleToAssign: 'admin' | 'teacher' | 'student' = 'student'
+          const { data: existingProf } = await supabase
+            .from('profiles')
+            .select('*')
+            .ilike('email', cleanEmail)
+            .maybeSingle()
+
+          if (existingProf) {
+            roleToAssign = resolveUserRole(existingProf.role)
+          }
+
           const newProfile = {
             id: authId,
             email: cleanEmail,
             name: name.trim(),
-            role: 'student',
+            role: roleToAssign,
             document_type: 'Passaporte Internacional',
             document_number: 'HEM-' + Date.now().toString().slice(-6),
             avatar_url:
+              existingProf?.avatar_url ||
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
           }
 
@@ -170,12 +184,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             }
           }
 
-          // Monta perfil do aluno e libera acesso imediato sem depender de confirmações bloqueadas
+          // Monta perfil do usuário respeitando o role real
           const mappedUser: UserProfile = {
             id: authId,
             name: name.trim(),
             email: cleanEmail,
-            role: 'student',
+            role: roleToAssign,
             originCountry: 'Brasil',
             currentCity: 'Orlando, FL',
             avatarUrl: newProfile.avatar_url,
@@ -204,22 +218,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         console.warn('Erro Supabase Auth signIn:', authError.message)
         const msg = authError.message.toLowerCase()
 
-        // Caso o Supabase responda que o e-mail não foi confirmado, NÃO BLOQUEIE O ALUNO
+        // Caso o Supabase responda que o e-mail não foi confirmado, NÃO BLOQUEIE O USUÁRIO
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
           const { data: profByEmail } = await supabase
             .from('profiles')
             .select('*')
-            .eq('email', cleanEmail)
+            .ilike('email', cleanEmail)
             .maybeSingle()
 
           if (profByEmail) {
-            const rawRole = String(profByEmail.role || 'student').toLowerCase()
-            const finalRole: 'student' | 'teacher' | 'admin' =
-              rawRole === 'admin' || rawRole === 'administrador'
-                ? 'admin'
-                : rawRole === 'teacher' || rawRole === 'professor'
-                ? 'teacher'
-                : 'student'
+            const finalRole = resolveUserRole(profByEmail.role)
 
             const mappedUser: UserProfile = {
               id: String(profByEmail.id || 'usr-' + Date.now()),
@@ -251,10 +259,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           const { data: profByEmail } = await supabase
             .from('profiles')
             .select('*')
-            .eq('email', cleanEmail)
+            .ilike('email', cleanEmail)
             .maybeSingle()
 
           if (profByEmail) {
+            const finalRole = resolveUserRole(profByEmail.role)
+
             // Tenta registrar credencial no Supabase Auth automaticamente
             try {
               const { data: autoSignUp } = await supabase.auth.signUp({
@@ -263,20 +273,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 options: {
                   data: {
                     name: profByEmail.name,
-                    role: profByEmail.role || 'student',
+                    role: finalRole,
                   },
                 },
               })
 
               const targetId = autoSignUp?.user?.id || profByEmail.id
-
-              const rawRole = String(profByEmail.role || 'student').toLowerCase()
-              const finalRole: 'student' | 'teacher' | 'admin' =
-                rawRole === 'admin' || rawRole === 'administrador'
-                  ? 'admin'
-                  : rawRole === 'teacher' || rawRole === 'professor'
-                  ? 'teacher'
-                  : 'student'
 
               const mappedUser: UserProfile = {
                 id: String(targetId),
@@ -320,47 +322,66 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       }
 
       const authId = authData.user.id
-      const authEmail = authData.user.email || cleanEmail
+      const authEmail = (authData.user.email || cleanEmail).trim().toLowerCase()
 
-      // 3. Busca o registro correspondente na tabela profiles usando o id do Auth
+      // 3. Busca o registro correspondente na tabela profiles
       let profileRow: Record<string, unknown> | null = null
 
-      const { data: profById, error: errId } = await supabase
+      const { data: profById } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authId)
         .maybeSingle()
 
-      if (!errId && profById) {
+      if (profById) {
         profileRow = profById
       } else {
-        // Fallback: busca por e-mail caso exista registro pré-cadastrado
+        // Fallback case-insensitive por e-mail
         const { data: profByEmail } = await supabase
           .from('profiles')
           .select('*')
-          .eq('email', authEmail)
+          .ilike('email', authEmail)
           .maybeSingle()
         if (profByEmail) {
           profileRow = profByEmail
+        } else {
+          // Busca de segurança em caso de espaços extras no banco
+          const { data: allProfiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .limit(100)
+          if (allProfiles && allProfiles.length > 0) {
+            const found = allProfiles.find(
+              (p: Record<string, unknown>) =>
+                p.id === authId ||
+                (p.email && String(p.email).trim().toLowerCase() === authEmail),
+            )
+            if (found) {
+              profileRow = found
+            }
+          }
         }
       }
 
-      // Se não existir registro em profiles, cria automaticamente respeitando o role
+      // Se encontrou o perfil mas o id no banco está desatualizado, sincroniza o ID SEM alterar o role!
+      if (profileRow && profileRow.id !== authId) {
+        try {
+          await supabase.from('profiles').update({ id: authId }).eq('id', profileRow.id)
+        } catch {
+          // prossegue normalmente
+        }
+      }
+
+      // Se não existir registro em profiles, cria novo registro respeitando metadados
       if (!profileRow) {
         const meta = authData.user.user_metadata || {}
-        const rawRole = String(meta.role || 'student').toLowerCase()
-        const assignedRole: 'student' | 'teacher' | 'admin' =
-          rawRole === 'admin' || rawRole === 'administrador'
-            ? 'admin'
-            : rawRole === 'teacher' || rawRole === 'professor'
-            ? 'teacher'
-            : 'student'
+        const initialRole = resolveUserRole(meta.role)
 
         const newRecord = {
           id: authId,
           email: authEmail,
           name: meta.name || meta.full_name || authEmail.split('@')[0],
-          role: assignedRole,
+          role: initialRole,
           document_type: meta.document_type || 'Passaporte Internacional',
           document_number: meta.document_number || 'HEM-USA-2026',
         }
@@ -373,14 +394,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         profileRow = newRecord
       }
 
-      // Mapeia perfil e garante respeito estrito ao role = 'student'
-      const rawRole = String(profileRow.role || 'student').toLowerCase()
-      const finalRole: 'student' | 'teacher' | 'admin' =
-        rawRole === 'admin' || rawRole === 'administrador'
-          ? 'admin'
-          : rawRole === 'teacher' || rawRole === 'professor'
-          ? 'teacher'
-          : 'student'
+      // CRÍTICO: Lê e respeita o role real vindo do banco de dados (profiles.role)
+      const finalRole = resolveUserRole(profileRow.role ?? authData.user.user_metadata?.role)
 
       const mappedUser: UserProfile = {
         id: String(profileRow.id || authId),

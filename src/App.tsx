@@ -17,6 +17,7 @@ import { DevNavigationWidget } from './components/dev/DevNavigationWidget'
 import { mockUser, mockTeacherUser, mockAdminUser, mockCourses, mockLesson } from './services/mockData'
 import type { ActiveView, UserProfile } from './types'
 import { supabase } from './lib/supabase'
+import { resolveUserRole } from './lib/roleUtils'
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
@@ -39,11 +40,13 @@ export function App() {
   const [editingAssessmentId, setEditingAssessmentId] = useState<string | null>(null)
 
   // Sincroniza sessão ativa do Supabase Auth e garante perfil existente na tabela profiles
-  const syncUserSession = async (session: { user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) => {
+  const syncUserSession = async (session: {
+    user: { id: string; email?: string; user_metadata?: Record<string, unknown> }
+  }) => {
     if (!session?.user) return false
 
     const authId = session.user.id
-    const authEmail = session.user.email || ''
+    const authEmail = (session.user.email || '').trim().toLowerCase()
 
     // 1. Busca registro na tabela profiles pelo ID do Auth
     let profileData: Record<string, unknown> | null = null
@@ -58,41 +61,53 @@ export function App() {
       if (profById) {
         profileData = profById
       } else if (authEmail) {
-        // 2. Fallback: busca por e-mail caso o usuário tenha sido pré-cadastrado
+        // 2. Fallback: busca por e-mail case-insensitive
         const { data: profByEmail } = await supabase
           .from('profiles')
           .select('*')
-          .eq('email', authEmail)
+          .ilike('email', authEmail)
           .maybeSingle()
 
         if (profByEmail) {
           profileData = profByEmail
-          // Vincula o ID do Auth ao perfil
-          try {
-            await supabase.from('profiles').update({ id: authId }).eq('email', authEmail)
-          } catch {
-            // Prossegue normalmente
+        } else {
+          // Busca de segurança em caso de espaços extras no banco
+          const { data: allProfiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .limit(100)
+          if (allProfiles && allProfiles.length > 0) {
+            const found = allProfiles.find(
+              (p: Record<string, unknown>) =>
+                p.id === authId ||
+                (p.email && String(p.email).trim().toLowerCase() === authEmail),
+            )
+            if (found) {
+              profileData = found
+            }
           }
         }
       }
 
-      // 3. Se ainda não existir registro em profiles (ex: novo login pelo Google OAuth),
-      // cria automaticamente o perfil com role = 'student' para não travar o acesso
+      // Se encontrou o perfil mas o id no banco está desatualizado, sincroniza o ID SEM alterar o role!
+      if (profileData && profileData.id !== authId) {
+        try {
+          await supabase.from('profiles').update({ id: authId }).eq('id', profileData.id)
+        } catch (e) {
+          console.warn('Aviso ao sincronizar ID do Auth no profile:', e)
+        }
+      }
+
+      // 3. APENAS se o perfil NÃO existir de fato na tabela profiles, cria um novo registro
       if (!profileData) {
         const meta = session.user.user_metadata || {}
-        const rawMetaRole = String(meta.role || 'student').toLowerCase()
-        const assignedRole: 'student' | 'teacher' | 'admin' =
-          rawMetaRole === 'admin' || rawMetaRole === 'administrador'
-            ? 'admin'
-            : rawMetaRole === 'teacher' || rawMetaRole === 'professor'
-            ? 'teacher'
-            : 'student'
+        const initialRole = resolveUserRole(meta.role)
 
         const displayName = String(
           meta.full_name ||
             meta.name ||
             meta.user_name ||
-            (authEmail ? authEmail.split('@')[0] : 'Aluno Hemingway'),
+            (authEmail ? authEmail.split('@')[0] : 'Usuário'),
         )
 
         const avatarUrl = String(
@@ -107,26 +122,27 @@ export function App() {
           id: authId,
           email: authEmail,
           name: displayName,
-          role: assignedRole,
+          role: initialRole,
           avatar_url: avatarUrl,
           document_type: 'Passaporte Internacional',
           document_number: docNumber,
         }
 
         try {
-          const { data: inserted, error: insErr } = await supabase
+          // Usa insert simples para NUNCA sobrescrever registros de perfis existentes
+          const { data: inserted } = await supabase
             .from('profiles')
-            .upsert([newProfile])
+            .insert([newProfile])
             .select()
             .maybeSingle()
 
-          if (!insErr && inserted) {
+          if (inserted) {
             profileData = inserted
           } else {
             profileData = newProfile
           }
         } catch (insertErr) {
-          console.warn('Aviso ao sincronizar profiles após login/OAuth:', insertErr)
+          console.warn('Aviso ao inserir perfil após login/OAuth:', insertErr)
           profileData = newProfile
         }
       }
@@ -134,29 +150,22 @@ export function App() {
       console.warn('Erro ao consultar tabela profiles:', e)
     }
 
-    // 4. Determina role e monta perfil final do usuário
+    // 4. Determina role real do usuário: PRIORIDADE TOTAL AO BANCO DE DADOS (profiles.role)
+    const finalRole: 'student' | 'teacher' | 'admin' = resolveUserRole(
+      profileData?.role ?? session.user.user_metadata?.role,
+    )
+
     const meta = session.user.user_metadata || {}
-    const rawRole = String(
-      profileData?.role || meta.role || 'student',
-    ).toLowerCase()
-
-    const role: 'student' | 'teacher' | 'admin' =
-      rawRole === 'admin' || rawRole === 'administrador'
-        ? 'admin'
-        : rawRole === 'teacher' || rawRole === 'professor'
-        ? 'teacher'
-        : 'student'
-
     const userObj: UserProfile = {
       id: String(profileData?.id || authId),
       name: String(
         profileData?.name ||
           meta.full_name ||
           meta.name ||
-          (authEmail ? authEmail.split('@')[0] : 'Aluno'),
+          (authEmail ? authEmail.split('@')[0] : 'Usuário'),
       ),
       email: authEmail,
-      role,
+      role: finalRole,
       originCountry: 'Brasil',
       currentCity: 'Orlando, FL',
       avatarUrl:
@@ -172,9 +181,9 @@ export function App() {
     }
 
     setCurrentUser(userObj)
-    setCurrentRole(role)
+    setCurrentRole(finalRole)
     setIsAuthenticated(true)
-    setActiveView(role === 'student' ? 'dashboard' : 'teacher-courses')
+    setActiveView(finalRole === 'student' ? 'dashboard' : 'teacher-courses')
     localStorage.setItem('hemingway_auth_profile', JSON.stringify(userObj))
 
     // Limpa tokens da URL após retorno do Google OAuth
@@ -203,16 +212,18 @@ export function App() {
         console.warn('Erro ao restaurar sessão do Supabase:', err)
       }
 
-      // Restaura dados cacheados locais
+      // Restaura dados cacheados locais se não houver sessão ativa
       const cached = localStorage.getItem('hemingway_auth_profile')
       if (cached && isMounted) {
         try {
           const parsed: UserProfile = JSON.parse(cached)
           if (parsed && parsed.email) {
+            const role = resolveUserRole(parsed.role)
+            parsed.role = role
             setCurrentUser(parsed)
-            setCurrentRole(parsed.role || 'student')
+            setCurrentRole(role)
             setIsAuthenticated(true)
-            setActiveView(parsed.role === 'student' ? 'dashboard' : 'teacher-courses')
+            setActiveView(role === 'student' ? 'dashboard' : 'teacher-courses')
           }
         } catch (e) {
           console.warn('Erro ao restaurar perfil local:', e)
@@ -259,8 +270,9 @@ export function App() {
   // Ação de Login: Recebe o perfil real ou mock e direciona para o painel correto
   const handleLoginSuccess = (userProfile?: UserProfile) => {
     const profile = userProfile || mockUser
+    const role = resolveUserRole(profile.role)
+    profile.role = role
     setCurrentUser(profile)
-    const role = profile.role || 'student'
     setCurrentRole(role)
     setIsAuthenticated(true)
     setActiveView(role === 'student' ? 'dashboard' : 'teacher-courses')
