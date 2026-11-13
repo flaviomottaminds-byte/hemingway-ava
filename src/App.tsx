@@ -3,6 +3,7 @@ import './locales/i18n'
 import { Topbar } from './components/layout/Topbar'
 import { Sidebar } from './components/layout/Sidebar'
 import { LoginView } from './features/auth/LoginView'
+import { ResetPasswordView } from './features/auth/ResetPasswordView'
 import { StudentDashboardView } from './features/dashboard/StudentDashboardView'
 import { LessonView } from './features/classroom/LessonView'
 import { TeacherCourseManagementView } from './features/teacher/TeacherCourseManagementView'
@@ -25,6 +26,12 @@ export function App() {
   // Roteamento e visualização ativa
   const [activeView, setActiveView] = useState<ActiveView>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+  const [isResetPasswordView, setIsResetPasswordView] = useState<boolean>(() => {
+    return (
+      window.location.pathname.includes('/reset-password') ||
+      window.location.hash.includes('type=recovery')
+    )
+  })
 
   // Estados de contexto para navegação entre telas de gestão
   const [selectedCurriculumCourseId, setSelectedCurriculumCourseId] = useState<string>('')
@@ -215,12 +222,25 @@ export function App() {
 
     checkSession()
 
-    // Listener para eventos de login/logout no Supabase (inclui retorno do Google OAuth)
+    // Listener para eventos de login/logout no Supabase (inclui retorno do Google OAuth e Recuperação de Senha)
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsResetPasswordView(true)
+        return
+      }
+
       if (
         (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') &&
         session
       ) {
+        // Se estiver na rota de recuperação de senha, prioriza a tela de redefinição
+        if (
+          window.location.pathname.includes('/reset-password') ||
+          window.location.hash.includes('type=recovery')
+        ) {
+          setIsResetPasswordView(true)
+          return
+        }
         await syncUserSession(session)
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false)
@@ -302,6 +322,22 @@ export function App() {
     } else {
       setActiveView('teacher-courses')
     }
+  }
+
+  // Rota de Redefinição de Senha (/reset-password ou evento PASSWORD_RECOVERY do Supabase)
+  if (isResetPasswordView) {
+    return (
+      <ResetPasswordView
+        onSuccess={() => {
+          setIsResetPasswordView(false)
+          window.history.replaceState(null, '', '/')
+        }}
+        onBackToLogin={() => {
+          setIsResetPasswordView(false)
+          window.history.replaceState(null, '', '/')
+        }}
+      />
+    )
   }
 
   // Se o usuário não estiver autenticado, exibe a Tela de Login LIMPA (SEM barra de simulação)

@@ -16,6 +16,7 @@ import { LanguageSelector } from '../../components/common/LanguageSelector'
 import { supabase } from '../../lib/supabase'
 import type { UserProfile } from '../../types'
 import { mockUser } from '../../services/mockData'
+import { ForgotPasswordModal } from './ForgotPasswordModal'
 
 interface LoginViewProps {
   onLoginSuccess: (profile?: UserProfile) => void
@@ -31,6 +32,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -641,6 +643,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     Lembrar credenciais
                   </label>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPasswordOpen(true)}
+                  className="text-xs font-semibold text-[#C59E5D] hover:text-[#B38C4B] hover:underline cursor-pointer transition-colors"
+                >
+                  Esqueceu sua senha?
+                </button>
               </div>
             )}
 
@@ -721,6 +731,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <span>Hemingway School • Autenticação Segura via Supabase Auth</span>
         </div>
       </footer>
+
+      {/* Modal de Recuperação de Senha */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+        initialEmail={email}
+      />
     </div>
   )
 }
