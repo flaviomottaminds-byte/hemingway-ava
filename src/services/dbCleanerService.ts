@@ -69,24 +69,12 @@ export const dbCleanerService = {
     }
 
     // 7. Limpeza dos armazenamentos locais da aplicação
-    const keysToRemove = [
-      'ava_supabase_courses',
-      'ava_supabase_disciplines',
-      'ava_supabase_course_disciplines',
-      'ava_supabase_lessons',
-      'ava_supabase_students_directory',
-      'ava_supabase_enrollments',
-      'ava_supabase_team_profiles',
-      'ava_course_teachers',
-    ]
-
-    keysToRemove.forEach((key) => {
-      try {
-        localStorage.removeItem(key)
-      } catch (err) {
-        console.warn(`Erro ao limpar ${key} do localStorage:`, err)
-      }
-    })
+    try {
+      localStorage.clear()
+      sessionStorage.clear()
+    } catch (err) {
+      console.warn('Erro ao limpar storages no dbCleanerService:', err)
+    }
 
     return {
       success: true,

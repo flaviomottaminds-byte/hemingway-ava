@@ -24,12 +24,25 @@ export const WipeDatabaseModal: React.FC<WipeDatabaseModalProps> = ({
       const res = await dbCleanerService.wipeAllData()
       setResult(res)
       setTimeout(() => {
+        try {
+          localStorage.clear()
+          sessionStorage.clear()
+        } catch (e) {
+          console.warn('Erro ao limpar storages:', e)
+        }
         onWiped?.()
         onClose()
         window.location.reload()
       }, 1500)
     } catch (err: any) {
       console.error('Erro na limpeza:', err)
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+      } catch (e) {
+        console.warn('Erro ao limpar storages no fallback:', e)
+      }
+      window.location.reload()
     } finally {
       setLoading(false)
     }
