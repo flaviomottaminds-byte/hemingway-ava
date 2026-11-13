@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   ChevronRight,
   Save,
-  X,
   Play,
   FileText,
   Upload,
@@ -31,6 +30,10 @@ import {
   UploadCloud,
   FileCheck,
   RefreshCw,
+  Search,
+  ArrowLeft,
+  Plus,
+  Pencil,
 } from 'lucide-react'
 import type {
   SupabaseCourse,
@@ -42,6 +45,7 @@ import { courseService } from '../../services/courseService'
 import { curriculumService } from '../../services/curriculumService'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
 import { extractTextFromPdf } from '../../utils/pdfExtractor'
+import { LessonEditModal } from './components/LessonEditModal'
 
 interface TeacherLessonEditorViewProps {
   lessonId?: string | null
@@ -70,6 +74,17 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   onSaveSuccess,
 }) => {
   const isEditing = Boolean(lessonId)
+
+  // Modo de visualização: 'list' (gerenciamento e listagem) ou 'editor' (edição completa)
+  const [viewMode, setViewMode] = useState<'list' | 'editor'>(lessonId ? 'editor' : 'list')
+  const [lessonsList, setLessonsList] = useState<SupabaseLesson[]>([])
+  const [loadingLessons, setLoadingLessons] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterDisciplineId, setFilterDisciplineId] = useState('all')
+
+  // Modal de Edição Rápida
+  const [selectedLessonForModal, setSelectedLessonForModal] = useState<SupabaseLesson | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   // Dados de contexto
   const [courses, setCourses] = useState<SupabaseCourse[]>([])
@@ -112,6 +127,79 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  // Carrega todas as aulas cadastradas no Supabase
+  const loadLessons = async () => {
+    setLoadingLessons(true)
+    try {
+      const res = await lessonService.getLessonsWithStatus()
+      setLessonsList(res.data)
+    } catch (err) {
+      console.error('Erro ao listar aulas:', err)
+    } finally {
+      setLoadingLessons(false)
+    }
+  }
+
+  useEffect(() => {
+    loadLessons()
+  }, [])
+
+  // Callback de salvamento via modal rápido ou editor
+  const handleLessonSaved = (saved: SupabaseLesson) => {
+    setLessonsList((prev) => {
+      const exists = prev.some((l) => l.id === saved.id)
+      if (exists) {
+        return prev.map((l) => (l.id === saved.id ? saved : l))
+      }
+      return [saved, ...prev]
+    })
+    showToast('Aula atualizada com sucesso!')
+    onSaveSuccess(saved)
+  }
+
+  const handleOpenEditModal = (lessonItem: SupabaseLesson) => {
+    setSelectedLessonForModal(lessonItem)
+    setIsEditModalOpen(true)
+  }
+
+  const handleOpenFullEditor = (lessonItem: SupabaseLesson) => {
+    setTitle(lessonItem.title)
+    setSequenceOrder(lessonItem.sequence_order)
+    setDurationMinutes(lessonItem.duration_minutes)
+    setContentText(lessonItem.content_text)
+    setVideoUrl(lessonItem.video_url || '')
+    setMaterials(lessonItem.materials || [])
+    setPdfUrl(lessonItem.pdf_url || '')
+    setPdfName(lessonItem.pdf_name || '')
+    if (lessonItem.course_id) setSelectedCourseId(lessonItem.course_id)
+    if (lessonItem.discipline_id) setSelectedDisciplineId(lessonItem.discipline_id)
+    setViewMode('editor')
+  }
+
+  const handleOpenNewLesson = () => {
+    setTitle('')
+    setSequenceOrder(lessonsList.length + 1)
+    setDurationMinutes(20)
+    setContentText('')
+    setVideoUrl('')
+    setMaterials([])
+    setPdfUrl('')
+    setPdfName('')
+    setViewMode('editor')
+  }
+
+  const handleDeleteLesson = async (lessonItem: SupabaseLesson) => {
+    if (!window.confirm(`Deseja realmente excluir a aula "${lessonItem.title}"?`)) return
+    try {
+      await lessonService.deleteLesson(lessonItem.id)
+      setLessonsList((prev) => prev.filter((l) => l.id !== lessonItem.id))
+      showToast('Aula excluída com sucesso.')
+    } catch (err) {
+      console.error('Erro ao excluir aula:', err)
+      showToast('Falha ao excluir aula.')
+    }
   }
 
   // Carrega cursos e disciplinas para os selects e breadcrumbs
@@ -366,6 +454,15 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     }
   }
 
+  const filteredLessons = lessonsList.filter((item) => {
+    const matchesSearch =
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.content_text.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesDiscipline =
+      filterDisciplineId === 'all' || item.discipline_id === filterDisciplineId
+    return matchesSearch && matchesDiscipline
+  })
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Toast Feedback */}
@@ -376,81 +473,293 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         </div>
       )}
 
-      {/* 1. CABEÇALHO E CONTEXTO: BREADCRUMBS & AÇÕES */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
-        {/* Breadcrumbs de Navegação */}
-        <nav
-          aria-label="Trilha de navegação"
-          className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 font-medium"
-        >
-          <button
-            type="button"
-            onClick={onCancel}
-            className="hover:text-blue-600 transition-colors cursor-pointer"
-          >
-            Meus Cursos
-          </button>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-700 font-semibold truncate max-w-[200px]">
-            {currentCourse?.title || 'Curso Selecionado'}
-          </span>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-700 font-semibold truncate max-w-[200px]">
-            {currentDiscipline?.name || 'Disciplina'}
-          </span>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md">
-            {isEditing ? 'Editar Aula' : 'Nova Aula'}
-          </span>
-        </nav>
+      {viewMode === 'list' ? (
+        /* ================= VISTA 1: GESTÃO E LISTAGEM DE TODAS AS AULAS ================= */
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Topo da Gestão de Aulas */}
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D] shadow-xs">
+                <PenTool className="w-6 h-6 text-[#C59E5D]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-[#0F1B2F] tracking-tight">
+                    Gestão de Aulas & Conteúdos
+                  </h1>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
+                    {lessonsList.length} aulas
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Edite qualquer aula a qualquer momento, atualize textos, vídeos ou substitua PDFs
+                </p>
+              </div>
+            </div>
 
-        {/* Título Principal e Botões de Ação no Topo Direito */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-              <span className="p-2 rounded-xl bg-blue-600/10 text-blue-600">
-                <PenTool className="w-5 h-5" />
-              </span>
-              <span>{isEditing ? 'Editar Aula / Estudo' : 'Adicionar Novo Estudo'}</span>
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Estruture o conteúdo programático, vídeo demonstrativo do YouTube e materiais de leitura.
-            </p>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={loadLessons}
+                className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer"
+                title="Recarregar aulas do Supabase"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenNewLesson}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition-all transform active:scale-[0.98] cursor-pointer"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Criar Nova Aula</span>
+              </button>
+            </div>
           </div>
 
-          {/* Botões: Cancelar e Salvar Aula */}
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isSubmitting}
-              className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <X className="w-4 h-4" />
-              <span>Cancelar</span>
-            </button>
+          {/* Barra de Filtros e Pesquisa */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <Search className="w-4 h-4 text-slate-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar aulas por título ou conteúdo..."
+                className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30"
+              />
+            </div>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSubmitting}
-              className="px-5 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-[#0F1B2F]/30 border-t-[#0F1B2F] rounded-full animate-spin" />
-                  <span>Gravando no Banco...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>Salvar Aula</span>
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={filterDisciplineId}
+                onChange={(e) => setFilterDisciplineId(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Todas as Disciplinas</option>
+                {disciplines.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code ? `[${d.code}] ` : ''}{d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {/* Listagem de Aulas */}
+          {loadingLessons ? (
+            <div className="py-16 text-center">
+              <Loader2 className="w-8 h-8 text-[#C59E5D] animate-spin mx-auto mb-2" />
+              <p className="text-xs text-slate-500">Consultando aulas no Supabase...</p>
+            </div>
+          ) : filteredLessons.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-dashed border-slate-300 p-12 text-center">
+              <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+              <h3 className="text-base font-bold text-slate-800">Nenhuma aula cadastrada</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                Crie sua primeira aula com material em PDF e vídeo do YouTube para os alunos.
+              </p>
+              <button
+                type="button"
+                onClick={handleOpenNewLesson}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Cadastrar Nova Aula</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {filteredLessons.map((item) => {
+                const disc = disciplines.find((d) => d.id === item.discipline_id)
+                const crs = courses.find((c) => c.id === item.course_id)
+                const hasVideo = Boolean(item.video_url && item.video_url.trim().length > 0)
+
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+                  >
+                    {/* Esquerda: Identificação e Dados */}
+                    <div className="space-y-2 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-extrabold bg-[#0F1B2F] text-[#FAF8F2]">
+                          Aula #{item.sequence_order}
+                        </span>
+                        {disc && (
+                          <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            {disc.code ? `[${disc.code}] ` : ''}{disc.name}
+                          </span>
+                        )}
+                        {crs && (
+                          <span className="text-xs text-slate-400 font-medium truncate max-w-[200px]">
+                            • {crs.title}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {item.duration_minutes || 20} min
+                        </span>
+                      </div>
+
+                      <h3 className="text-base font-bold text-slate-900 leading-snug group-hover:text-[#0F1B2F]">
+                        {item.title}
+                      </h3>
+
+                      {/* Badges de Material (PDF e Vídeo) */}
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        {item.pdf_url ? (
+                          <a
+                            href={item.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-[#FAF8F2] text-[#0F1B2F] border border-[#C59E5D]/40 hover:bg-[#EADBBE]/50 transition-colors"
+                            title="Abrir PDF"
+                          >
+                            <span className="p-0.5 rounded bg-red-600 text-white text-[9px] font-extrabold">PDF</span>
+                            <span className="truncate max-w-[240px] font-mono">{item.pdf_name || 'Material da Aula'}</span>
+                            <ExternalLink className="w-3 h-3 text-[#C59E5D]" />
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Sem PDF anexado</span>
+                        )}
+
+                        {hasVideo && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                            <Play className="w-3 h-3 fill-current text-red-600" />
+                            <span>Vídeo YouTube</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {item.content_text && (
+                        <p className="text-xs text-slate-500 line-clamp-2 pt-1 font-sans">
+                          {item.content_text}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Direita: Botões de Ação com Destaque Dourado/Marinho no "Editar" */}
+                    <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
+                      {/* Botão EDITAR em Destaque Dourado (#C59E5D) / Azul Marinho (#0F1B2F) */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(item)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] border border-[#C59E5D] shadow-sm transition-all transform active:scale-95 cursor-pointer"
+                        title="Editar aula no Supabase"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-[#0F1B2F]" />
+                        <span>Editar</span>
+                      </button>
+
+                      {/* Botão Editor Completo */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFullEditor(item)}
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                        title="Abrir no editor de página inteira"
+                      >
+                        <span>Editor Amplo</span>
+                      </button>
+
+                      {/* Botão Excluir */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLesson(item)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                        title="Excluir aula"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        /* ================= VISTA 2: FORMULÁRIO DO EDITOR DE PÁGINA INTEIRA ================= */
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 1. CABEÇALHO E CONTEXTO: BREADCRUMBS & AÇÕES */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+            {/* Breadcrumbs de Navegação com botão para voltar à lista de aulas */}
+            <nav
+              aria-label="Trilha de navegação"
+              className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 font-medium"
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1 font-bold text-[#0F1B2F]"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-[#C59E5D]" />
+                <span>Lista de Aulas</span>
+              </button>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-700 font-semibold truncate max-w-[200px]">
+                {currentCourse?.title || 'Curso Selecionado'}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-700 font-semibold truncate max-w-[200px]">
+                {currentDiscipline?.name || 'Disciplina'}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[#0F1B2F] font-bold bg-[#FAF8F2] border border-[#C59E5D]/40 px-2 py-0.5 rounded-md">
+                {isEditing ? 'Editar Aula' : 'Nova Aula'}
+              </span>
+            </nav>
+
+            {/* Título Principal e Botões de Ação no Topo Direito */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-extrabold text-[#0F1B2F] tracking-tight flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-[#C59E5D]/20 text-[#0F1B2F] border border-[#C59E5D]/40">
+                    <PenTool className="w-5 h-5 text-[#C59E5D]" />
+                  </span>
+                  <span>{isEditing ? 'Editar Aula' : 'Adicionar Novo Estudo'}</span>
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Estruture o conteúdo programático, vídeo demonstrativo do YouTube e materiais de leitura.
+                </p>
+              </div>
+
+              {/* Botões: Voltar para Lista e Salvar Aula */}
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  disabled={isSubmitting}
+                  className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Voltar à Lista</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-[#0F1B2F]/30 border-t-[#0F1B2F] rounded-full animate-spin" />
+                      <span>Gravando no Banco...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Salvar Aula</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
 
       {/* Grid Principal: 2 Colunas no Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1132,6 +1441,19 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
           </button>
         </div>
       </div>
+        </div>
+      )}
+
+      {/* Modal de Edição Rápida da Aula (UPDATE no Supabase) */}
+      <LessonEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setSelectedLessonForModal(null)
+        }}
+        lesson={selectedLessonForModal}
+        onSaved={handleLessonSaved}
+      />
     </div>
   )
 }

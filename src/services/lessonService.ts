@@ -254,37 +254,69 @@ class SupabaseLessonService {
     id: string,
     dto: Partial<CreateLessonDTO>,
   ): Promise<SupabaseLesson> {
+    const updatePayload: Record<string, unknown> = {}
+    if (dto.title !== undefined) updatePayload.title = dto.title.trim()
+    if (dto.content_text !== undefined) updatePayload.content = dto.content_text
+    if (dto.video_url !== undefined) updatePayload.youtube_url = dto.video_url.trim()
+    if (dto.sequence_order !== undefined) updatePayload.sequence_order = dto.sequence_order
+    if (dto.discipline_id !== undefined) updatePayload.discipline_id = dto.discipline_id
+    if (dto.duration_minutes !== undefined) updatePayload.duration_minutes = dto.duration_minutes
+    if (dto.pdf_url !== undefined) updatePayload.pdf_url = dto.pdf_url || null
+    if (dto.pdf_name !== undefined) updatePayload.pdf_name = dto.pdf_name || null
+
     try {
-      await supabase
+      const { error } = await supabase
         .from('lessons')
-        .update({
-          ...(dto.title !== undefined && { title: dto.title.trim() }),
-          ...(dto.content_text !== undefined && { content: dto.content_text }),
-          ...(dto.video_url !== undefined && { youtube_url: dto.video_url.trim() }),
-          ...(dto.sequence_order !== undefined && { sequence_order: dto.sequence_order }),
-          ...(dto.pdf_url !== undefined && { pdf_url: dto.pdf_url }),
-          ...(dto.pdf_name !== undefined && { pdf_name: dto.pdf_name }),
-        })
+        .update(updatePayload)
         .eq('id', id)
+
+      if (error) {
+        console.warn('Aviso Supabase ao atualizar aula:', error)
+      }
     } catch (err) {
       console.warn('Erro ao atualizar aula no Supabase:', err)
     }
 
     const list = this.loadLessons()
     const index = list.findIndex((l) => l.id === id)
-    if (index === -1) throw new Error('Aula não encontrada.')
 
-    const youtubeId = dto.video_url
-      ? extractYouTubeId(dto.video_url) || undefined
-      : list[index].video_youtube_id
+    const youtubeId =
+      dto.video_url !== undefined
+        ? extractYouTubeId(dto.video_url) || undefined
+        : index !== -1
+          ? list[index].video_youtube_id
+          : undefined
 
-    const updated = {
-      ...list[index],
-      ...dto,
-      video_youtube_id: youtubeId,
-      updated_at: new Date().toISOString(),
+    let updated: SupabaseLesson
+
+    if (index !== -1) {
+      updated = {
+        ...list[index],
+        ...dto,
+        video_youtube_id: youtubeId,
+        updated_at: new Date().toISOString(),
+      }
+      list[index] = updated
+    } else {
+      updated = {
+        id,
+        course_id: dto.course_id || '',
+        discipline_id: dto.discipline_id || '',
+        title: dto.title || 'Aula Atualizada',
+        sequence_order: dto.sequence_order || 1,
+        duration_minutes: dto.duration_minutes || 20,
+        content_text: dto.content_text || '',
+        video_url: dto.video_url || '',
+        video_youtube_id: youtubeId,
+        materials: dto.materials || [],
+        pdf_url: dto.pdf_url,
+        pdf_name: dto.pdf_name,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      list.push(updated)
     }
-    list[index] = updated
+
     this.saveLessons(list)
     return updated
   }

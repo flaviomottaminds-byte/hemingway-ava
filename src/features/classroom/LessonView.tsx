@@ -10,11 +10,13 @@ import {
   Database,
   ExternalLink,
   Award,
+  Pencil,
 } from 'lucide-react'
 import type { Lesson, SupabaseLesson, UserProfile } from '../../types'
 import type { SupportedLanguageCode } from '../../locales/i18n'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
 import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
+import { LessonEditModal } from '../teacher/components/LessonEditModal'
 
 interface LessonViewProps {
   lesson: Lesson
@@ -29,6 +31,15 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
   const [isCompleted, setIsCompleted] = useState(lesson.isCompleted)
   const [userNote, setUserNote] = useState('')
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 3500)
+  }
+
+  const canEdit = user?.role === 'admin' || user?.role === 'teacher'
 
   // Estado da aula real do Supabase
   const [supabaseLesson, setSupabaseLesson] = useState<SupabaseLesson | null>(null)
@@ -82,6 +93,14 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Toast Feedback */}
+      {toastMsg && (
+        <div className="fixed top-20 right-6 z-50 bg-[#0F1B2F] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-[#C59E5D] animate-in slide-in-from-top-4 duration-200">
+          <Database className="w-4 h-4 text-[#C59E5D]" />
+          <span className="text-xs font-semibold">{toastMsg}</span>
+        </div>
+      )}
+
       {/* Barra de Navegação da Aula */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200">
         <button
@@ -94,6 +113,19 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </button>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Botão "Editar esta Aula" (visível para Admin ou Professor) */}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] border border-[#C59E5D] shadow-md shadow-[#C59E5D]/25 transition-all cursor-pointer"
+              title="Editar título, vídeo, PDF ou conteúdo desta aula no Supabase"
+            >
+              <Pencil className="w-3.5 h-3.5 text-[#0F1B2F]" />
+              <span>Editar esta Aula</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsCompleted(!isCompleted)}
@@ -433,6 +465,33 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         courseTitle={currentTitle}
         completionDate={new Date().toISOString()}
         enrollmentId="HEM-2026-MAT-8849"
+      />
+
+      {/* Modal de Edição Completa da Aula (UPDATE no Supabase) */}
+      <LessonEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        lesson={
+          supabaseLesson ||
+          ({
+            id: lesson.id,
+            title: currentTitle,
+            content_text: transcriptionText,
+            video_url: videoUrl,
+            sequence_order: 1,
+            duration_minutes: 25,
+            course_id: '',
+            discipline_id: '',
+            materials: [],
+            pdf_url: pdfUrl || undefined,
+            pdf_name: pdfName || undefined,
+            created_at: new Date().toISOString(),
+          } as SupabaseLesson)
+        }
+        onSaved={(updated) => {
+          setSupabaseLesson(updated)
+          showToast('Aula atualizada com sucesso!')
+        }}
       />
     </div>
   )
