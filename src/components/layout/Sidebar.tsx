@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard,
   BookOpen,
@@ -42,6 +43,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentRole = 'student',
 }) => {
   const { t } = useTranslation()
+
+  // Contadores dinâmicos reais do Supabase (Cursos, Docentes e Alunos)
+  const [counts, setCounts] = useState<{ courses: number; teachers: number; students: number }>({
+    courses: 0,
+    teachers: 0,
+    students: 0,
+  })
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const [coursesRes, teachersRes, studentsRes] = await Promise.all([
+          supabase.from('courses').select('*', { count: 'exact', head: true }),
+          supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .in('role', ['teacher', 'professor']),
+          supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .in('role', ['student', 'aluno']),
+        ])
+
+        setCounts({
+          courses: coursesRes.count ?? 0,
+          teachers: teachersRes.count ?? 0,
+          students: studentsRes.count ?? 0,
+        })
+      } catch (err) {
+        console.warn('Erro ao consultar contadores dinâmicos do Supabase:', err)
+      }
+    }
+
+    fetchCounts()
+  }, [])
 
   // 1. Menu para perfil ADMIN (Administrativo Institucional - Controle Total)
   const adminNavItems = [
@@ -389,8 +425,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     Acesso Total
                   </span>
                 </div>
-                <p className="text-xs text-[#EADBBE]/80 mb-2">
-                  5 Cursos • 7 Docentes • 142 Alunos
+                <p className="text-xs text-[#EADBBE]/80 mb-2 font-medium">
+                  {counts.courses} {counts.courses === 1 ? 'Curso' : 'Cursos'} ·{' '}
+                  {counts.teachers} {counts.teachers === 1 ? 'Docente' : 'Docentes'} ·{' '}
+                  {counts.students} {counts.students === 1 ? 'Aluno' : 'Alunos'}
                 </p>
                 <div className="w-full bg-[#0A1220] rounded-full h-1.5 overflow-hidden border border-red-500/20">
                   <div className="bg-red-500 h-1.5 rounded-full" style={{ width: '100%' }} />
@@ -411,8 +449,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     Ativo
                   </span>
                 </div>
-                <p className="text-xs text-[#EADBBE]/80 mb-2">
-                  Minhas Turmas: 2 Cursos • 64 Alunos
+                <p className="text-xs text-[#EADBBE]/80 mb-2 font-medium">
+                  Minhas Turmas: {counts.courses} {counts.courses === 1 ? 'Curso' : 'Cursos'} ·{' '}
+                  {counts.students} {counts.students === 1 ? 'Aluno' : 'Alunos'}
                 </p>
                 <div className="w-full bg-[#0A1220] rounded-full h-1.5 overflow-hidden border border-[#C59E5D]/20">
                   <div className="bg-[#C59E5D] h-1.5 rounded-full" style={{ width: '70%' }} />
