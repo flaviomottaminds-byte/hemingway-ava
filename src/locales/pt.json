@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "AprendeUSA AVA",
+    "appName": "Hemingway School AVA",
     "tagline": "Ambiente Virtual de Aprendizagem para a Comunidade Imigrante",
     "search": "Buscar cursos, aulas, materiais...",
     "notifications": "Notificações",
@@ -21,7 +21,7 @@
     "es": "Español"
   },
   "login": {
-    "title": "Boas-vindas ao AprendeUSA",
+    "title": "Boas-vindas à Hemingway School",
     "subtitle": "Sua ponte para o sucesso educacional e profissional nos Estados Unidos",
     "emailLabel": "E-mail ou Documento",
     "emailPlaceholder": "seu.email@exemplo.com",

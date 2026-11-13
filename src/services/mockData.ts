@@ -18,7 +18,7 @@ export const mockUser: UserProfile = {
 export const mockTeacherUser: UserProfile = {
   id: 'usr_teacher_202',
   name: 'Prof. Leonardo Dias',
-  email: 'leonardo.dias@aprendeusa.org',
+  email: 'leonardo.dias@hemingway.school',
   role: 'teacher',
   originCountry: 'Brasil',
   currentCity: 'Miami, Florida, USA',
@@ -33,7 +33,7 @@ export const mockTeacherUser: UserProfile = {
 export const mockAdminUser: UserProfile = {
   id: 'usr_admin_001',
   name: 'Dra. Elena Vasquez',
-  email: 'elena.vasquez@aprendeusa.org',
+  email: 'elena.vasquez@hemingway.school',
   role: 'admin',
   originCountry: 'Brasil',
   currentCity: 'Orlando, Florida, USA',

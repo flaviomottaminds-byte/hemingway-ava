@@ -70,12 +70,16 @@ export const Topbar: React.FC<TopbarProps> = ({
             onClick={onNavigateHome}
             className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-6 h-6" />
+            <div className="h-10 rounded-xl overflow-hidden bg-[#f7f5ed] border border-slate-200/80 shadow-xs flex items-center px-1 group-hover:scale-105 transition-transform shrink-0">
+              <img
+                src="/logo-hemingway.png"
+                alt="Hemingway School Logo"
+                className="h-9 w-auto object-contain"
+              />
             </div>
             <div>
               <span className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
-                Aprende<span className="text-blue-600">USA</span>
+                Hemingway <span className="text-[#0d1b2a]">School</span>
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">
                   AVA
                 </span>

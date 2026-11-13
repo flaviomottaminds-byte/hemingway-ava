@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { GraduationCap, Lock, Mail, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Lock, Mail, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { LanguageSelector } from '../../components/common/LanguageSelector'
 
 interface LoginViewProps {
@@ -23,14 +23,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       {/* Barra Superior do Login com Seletor de Idioma */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between pb-6 border-b border-slate-200/60">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-            <GraduationCap className="w-6 h-6" />
+          <div className="h-11 rounded-xl overflow-hidden bg-[#f7f5ed] border border-slate-200/80 shadow-xs flex items-center px-1.5 shrink-0">
+            <img
+              src="/logo-hemingway.png"
+              alt="Hemingway School Logo"
+              className="h-10 w-auto object-contain"
+            />
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             <span className="text-xl font-bold text-slate-900 tracking-tight">
-              Aprende<span className="text-blue-600">USA</span>
+              Hemingway <span className="text-[#0d1b2a]">School</span>
             </span>
-            <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">
+            <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">
               AVA
             </span>
           </div>
@@ -49,6 +53,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <main className="flex-1 flex items-center justify-center my-8">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-slate-200/70 border border-slate-100 p-8 sm:p-10 transition-all">
           <div className="text-center mb-8">
+            <div className="inline-flex justify-center mb-4">
+              <div className="h-16 rounded-2xl overflow-hidden bg-[#f7f5ed] border border-slate-200/80 shadow-xs flex items-center px-3">
+                <img
+                  src="/logo-hemingway.png"
+                  alt="Hemingway School Logo"
+                  className="h-14 w-auto object-contain"
+                />
+              </div>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               {t('login.title')}
             </h1>

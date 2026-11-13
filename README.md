@@ -1,4 +1,4 @@
-# AprendeUSA - AVA para a Comunidade Imigrante nos EUA 🇺🇸 🇧🇷 🇪🇸
+# Hemingway School - AVA para a Comunidade Imigrante nos EUA 🇺🇸 🇧🇷 🇪🇸
 
 Um **Ambiente Virtual de Aprendizagem (AVA / LMS)** moderno, inclusivo e responsivo, desenvolvido com **React, TypeScript, Vite, Tailwind CSS e i18next**, voltado especificamente para apoiar imigrantes nos Estados Unidos em sua jornada educacional, legal, financeira e de adaptação linguística.
 

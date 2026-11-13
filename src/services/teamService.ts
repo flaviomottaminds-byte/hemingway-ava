@@ -7,7 +7,7 @@ const INITIAL_TEAM: SupabaseTeamProfile[] = [
   {
     id: 'team-01',
     name: 'Dra. Elena Vasquez',
-    email: 'elena.vasquez@aprendeusa.org',
+    email: 'elena.vasquez@hemingway.school',
     phone: '+1 (407) 555-0101',
     role: 'admin',
     status: 'active',
@@ -21,7 +21,7 @@ const INITIAL_TEAM: SupabaseTeamProfile[] = [
   {
     id: 'team-02',
     name: 'Prof. Marcus Vance',
-    email: 'marcus.vance@aprendeusa.org',
+    email: 'marcus.vance@hemingway.school',
     phone: '+1 (305) 555-0102',
     role: 'coordinator',
     status: 'active',
@@ -35,7 +35,7 @@ const INITIAL_TEAM: SupabaseTeamProfile[] = [
   {
     id: 'team-03',
     name: 'Prof. Leonardo Dias',
-    email: 'leonardo.dias@aprendeusa.org',
+    email: 'leonardo.dias@hemingway.school',
     phone: '+1 (617) 555-0103',
     role: 'teacher',
     status: 'active',
@@ -50,7 +50,7 @@ const INITIAL_TEAM: SupabaseTeamProfile[] = [
   {
     id: 'team-04',
     name: 'Mariana Gomez',
-    email: 'mariana.gomez@aprendeusa.org',
+    email: 'mariana.gomez@hemingway.school',
     phone: '+1 (713) 555-0104',
     role: 'teacher',
     status: 'active',
@@ -65,7 +65,7 @@ const INITIAL_TEAM: SupabaseTeamProfile[] = [
   {
     id: 'team-05',
     name: 'Camila Prado',
-    email: 'camila.prado@aprendeusa.org',
+    email: 'camila.prado@hemingway.school',
     phone: '+1 (404) 555-0105',
     role: 'support',
     status: 'active',

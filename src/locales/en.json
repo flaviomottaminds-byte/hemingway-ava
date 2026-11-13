@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "AprendeUSA LMS",
+    "appName": "Hemingway School LMS",
     "tagline": "Virtual Learning Environment for the Immigrant Community",
     "search": "Search courses, lessons, materials...",
     "notifications": "Notifications",
@@ -21,7 +21,7 @@
     "es": "Español"
   },
   "login": {
-    "title": "Welcome to AprendeUSA",
+    "title": "Welcome to Hemingway School",
     "subtitle": "Your bridge to educational and professional success in the United States",
     "emailLabel": "Email or ID Document",
     "emailPlaceholder": "your.email@example.com",

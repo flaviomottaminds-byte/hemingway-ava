@@ -304,7 +304,7 @@ export const TeamMemberFormModal: React.FC<TeamMemberFormModalProps> = ({
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nome@aprendeusa.org"
+                    placeholder="nome@hemingway.school"
                     className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                   />
                 </div>
