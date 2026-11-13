@@ -35,6 +35,11 @@ export const DevNavigationWidget: React.FC<DevNavigationWidgetProps> = ({
   onSelectView,
   onLogout,
 }) => {
+  // A barra de simulação DEVE SER OCULTADA EM 100% em produção
+  if (!import.meta.env.DEV) {
+    return null
+  }
+
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Determina rótulos, cores e próximo estado do ciclo

@@ -1,21 +1,268 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Lock, Mail, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react'
+import {
+  Lock,
+  Mail,
+  ShieldCheck,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  User,
+  UserPlus,
+  LogIn,
+} from 'lucide-react'
 import { LanguageSelector } from '../../components/common/LanguageSelector'
+import { supabase } from '../../lib/supabase'
+import type { UserProfile } from '../../types'
+import { mockUser } from '../../services/mockData'
 
 interface LoginViewProps {
-  onLoginSuccess: () => void
+  onLoginSuccess: (profile?: UserProfile) => void
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { t } = useTranslation()
-  const [email, setEmail] = useState('mateo.silva@exemplo.com')
-  const [password, setPassword] = useState('••••••••')
+
+  // Modo: 'login' (Entrar) ou 'register' (Criar Conta de Aluno)
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  // Submissão do Formulário (Login ou Cadastro via Supabase Auth)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onLoginSuccess()
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail || !password) {
+      setErrorMessage('Por favor, informe seu e-mail e sua senha.')
+      return
+    }
+
+    if (mode === 'register' && !name.trim()) {
+      setErrorMessage('Por favor, informe seu nome completo.')
+      return
+    }
+
+    if (password.length < 6) {
+      setErrorMessage('A senha deve conter no mínimo 6 caracteres.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    // Limpa dados de sessões ou simulações antigas
+    localStorage.clear()
+    sessionStorage.clear()
+
+    try {
+      if (mode === 'register') {
+        // 1. Cadastro via Supabase Auth
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: password,
+          options: {
+            data: {
+              name: name.trim(),
+              role: 'student',
+            },
+          },
+        })
+
+        if (signUpError) {
+          console.warn('Erro ao cadastrar usuário:', signUpError)
+          setErrorMessage(`Falha no cadastro: ${signUpError.message}`)
+          setIsSubmitting(false)
+          return
+        }
+
+        if (signUpData?.user) {
+          const authId = signUpData.user.id
+          // Cria registro na tabela profiles vinculada ao ID do Auth
+          const newProfile = {
+            id: authId,
+            email: cleanEmail,
+            name: name.trim(),
+            role: 'student',
+            document_type: 'Passaporte Internacional',
+            document_number: 'HEM-' + Date.now().toString().slice(-6),
+          }
+
+          try {
+            await supabase.from('profiles').upsert([newProfile])
+          } catch (profileErr) {
+            console.warn('Aviso ao gravar em profiles:', profileErr)
+          }
+
+          // Se a sessão estiver ativa imediatamente (sem confirmação por e-mail obrigatória)
+          if (signUpData.session) {
+            const mappedUser: UserProfile = {
+              id: authId,
+              name: name.trim(),
+              email: cleanEmail,
+              role: 'student',
+              originCountry: 'Brasil',
+              currentCity: 'Orlando, FL',
+              avatarUrl:
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+              preferredLanguage: 'pt',
+              weeklyGoalHours: 10,
+              completedHours: 0,
+              activeCoursesCount: 1,
+              certificatesEarned: 0,
+              document_type: 'Passaporte Internacional',
+              document_number: newProfile.document_number,
+            }
+            localStorage.setItem('hemingway_auth_profile', JSON.stringify(mappedUser))
+            onLoginSuccess(mappedUser)
+            return
+          } else {
+            setSuccessMessage(
+              'Conta de aluno criada com sucesso! Faça login com seu e-mail e senha cadastrados.',
+            )
+            setMode('login')
+            setIsSubmitting(false)
+            return
+          }
+        }
+      }
+
+      // 2. Login via Supabase Auth (supabase.auth.signInWithPassword)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password,
+      })
+
+      if (authError) {
+        console.warn('Erro Supabase Auth signIn:', authError.message)
+        const msg = authError.message.toLowerCase()
+        if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+          setErrorMessage('E-mail ou senha inválidos. Por favor, confira seus dados cadastrados.')
+        } else if (msg.includes('email not confirmed')) {
+          setErrorMessage(
+            'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada no e-mail.',
+          )
+        } else {
+          setErrorMessage(`Falha na autenticação: ${authError.message}`)
+        }
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!authData?.user) {
+        setErrorMessage('Não foi possível obter a sessão do usuário autenticado.')
+        setIsSubmitting(false)
+        return
+      }
+
+      const authId = authData.user.id
+      const authEmail = authData.user.email || cleanEmail
+
+      // 3. Busca o registro correspondente na tabela profiles usando o id do Auth
+      let profileRow: Record<string, unknown> | null = null
+
+      const { data: profById, error: errId } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authId)
+        .maybeSingle()
+
+      if (!errId && profById) {
+        profileRow = profById
+      } else {
+        // Fallback: busca por e-mail caso exista registro pré-cadastrado
+        const { data: profByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', authEmail)
+          .maybeSingle()
+        if (profByEmail) {
+          profileRow = profByEmail
+        }
+      }
+
+      // Se não existir registro em profiles, cria automaticamente respeitando o role
+      if (!profileRow) {
+        const meta = authData.user.user_metadata || {}
+        const rawRole = String(meta.role || 'student').toLowerCase()
+        const assignedRole: 'student' | 'teacher' | 'admin' =
+          rawRole === 'admin' || rawRole === 'administrador'
+            ? 'admin'
+            : rawRole === 'teacher' || rawRole === 'professor'
+            ? 'teacher'
+            : 'student'
+
+        const newRecord = {
+          id: authId,
+          email: authEmail,
+          name: meta.name || meta.full_name || authEmail.split('@')[0],
+          role: assignedRole,
+          document_type: meta.document_type || 'Passaporte Internacional',
+          document_number: meta.document_number || 'HEM-USA-2026',
+        }
+
+        try {
+          await supabase.from('profiles').insert([newRecord])
+        } catch (insertErr) {
+          console.warn('Aviso ao sincronizar profiles:', insertErr)
+        }
+        profileRow = newRecord
+      }
+
+      // Mapeia perfil e garante respeito estrito ao role = 'student'
+      const rawRole = String(profileRow.role || 'student').toLowerCase()
+      const finalRole: 'student' | 'teacher' | 'admin' =
+        rawRole === 'admin' || rawRole === 'administrador'
+          ? 'admin'
+          : rawRole === 'teacher' || rawRole === 'professor'
+          ? 'teacher'
+          : 'student'
+
+      const mappedUser: UserProfile = {
+        id: String(profileRow.id || authId),
+        name: String(profileRow.name || authEmail.split('@')[0]),
+        email: authEmail,
+        role: finalRole,
+        originCountry: 'Brasil',
+        currentCity: 'Orlando, FL',
+        avatarUrl:
+          String(profileRow.avatar_url || '') ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+        preferredLanguage: 'pt',
+        weeklyGoalHours: 10,
+        completedHours: 0,
+        activeCoursesCount: 1,
+        certificatesEarned: 0,
+        document_type: String(profileRow.document_type || 'Passaporte Internacional'),
+        document_number: String(profileRow.document_number || ''),
+      }
+
+      localStorage.setItem('hemingway_auth_profile', JSON.stringify(mappedUser))
+      onLoginSuccess(mappedUser)
+    } catch (err: unknown) {
+      console.error('Erro geral no processo de autenticação:', err)
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Falha na conexão com os servidores do Supabase.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Acesso Convidado / Demonstração
+  const handleGuestDemo = () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    onLoginSuccess(mockUser)
   }
 
   return (
@@ -35,7 +282,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </span>
         </div>
 
-        {/* Seletor com botões ou dropdown no topo */}
+        {/* Seletor de idiomas */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#1C2E4A]/70 hidden sm:inline">
             {t('common.switchLanguage')}:
@@ -44,11 +291,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         </div>
       </header>
 
-      {/* Card Central de Login */}
+      {/* Card Central de Login / Cadastro */}
       <main className="flex-1 flex items-center justify-center my-8">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-[#0F1B2F]/5 border border-[#EADBBE] p-8 sm:p-10 transition-all">
-          <div className="text-center mb-8">
-            <div className="inline-flex justify-center mb-5">
+          <div className="text-center mb-6">
+            <div className="inline-flex justify-center mb-4">
               <div className="h-20 rounded-2xl overflow-hidden bg-white border border-[#C59E5D]/40 shadow-sm flex items-center px-6">
                 <img
                   src="/logo-hemingway.png"
@@ -58,108 +305,219 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F1B2F] tracking-tight">
-              {t('login.title')}
+              {mode === 'login' ? 'Ambiente Virtual de Aprendizagem' : 'Cadastrar Novo Aluno'}
             </h1>
-            <p className="mt-2 text-sm text-[#1C2E4A]/80 leading-relaxed">
-              {t('login.subtitle')}
+            <p className="mt-1.5 text-xs sm:text-sm text-[#1C2E4A]/80 leading-relaxed">
+              {mode === 'login'
+                ? 'Acesse sua área de estudos da Hemingway School com suas credenciais oficiais'
+                : 'Crie sua conta de aluno para acompanhar suas aulas e certificados'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Abas de Navegação: Login vs Cadastro */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#FAF8F2] rounded-2xl border border-[#EADBBE] mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login')
+                setErrorMessage(null)
+                setSuccessMessage(null)
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                mode === 'login'
+                  ? 'bg-[#0F1B2F] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5 text-[#C59E5D]" />
+              <span>Acessar Conta</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register')
+                setErrorMessage(null)
+                setSuccessMessage(null)
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                mode === 'register'
+                  ? 'bg-[#0F1B2F] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5 text-[#C59E5D]" />
+              <span>Criar Conta</span>
+            </button>
+          </div>
+
+          {/* Alertas de Erro ou Sucesso */}
+          {errorMessage && (
+            <div className="mb-5 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-5 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold">{successMessage}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs font-bold text-[#0F1B2F] mb-1 uppercase tracking-wider">
+                  Nome Completo <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-[#C59E5D]" />
+                  </div>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: Luiz Augusto"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#FAF8F2] border border-[#EADBBE] rounded-xl text-[#0F1B2F] text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/40 focus:border-[#C59E5D] transition-all"
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
-              <label className="block text-xs font-bold text-[#0F1B2F] mb-1.5 uppercase tracking-wider">
-                {t('login.emailLabel')}
+              <label className="block text-xs font-bold text-[#0F1B2F] mb-1 uppercase tracking-wider">
+                E-mail Institucional ou Pessoal <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-[#C59E5D]" />
+                  <Mail className="h-4 w-4 text-[#C59E5D]" />
                 </div>
                 <input
-                  type="text"
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('login.emailPlaceholder')}
+                  placeholder="aluno@hemingwayschool.com"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-[#FAF8F2] border border-[#EADBBE] rounded-xl text-[#0F1B2F] text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/40 focus:border-[#C59E5D] transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF8F2] border border-[#EADBBE] rounded-xl text-[#0F1B2F] text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/40 focus:border-[#C59E5D] transition-all"
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-[#0F1B2F] uppercase tracking-wider">
-                  {t('login.passwordLabel')}
+                  Senha de Acesso <span className="text-red-500">*</span>
                 </label>
-                <a
-                  href="#forgot"
-                  onClick={(e) => e.preventDefault()}
-                  className="text-xs font-semibold text-[#C59E5D] hover:text-[#B38C4B] hover:underline"
-                >
-                  {t('login.forgotPassword')}
-                </a>
+                {mode === 'login' && (
+                  <span className="text-[11px] text-slate-400">Mínimo 6 caracteres</span>
+                )}
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-[#C59E5D]" />
+                  <Lock className="h-4 w-4 text-[#C59E5D]" />
                 </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('login.passwordPlaceholder')}
+                  placeholder="••••••••"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-[#FAF8F2] border border-[#EADBBE] rounded-xl text-[#0F1B2F] text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/40 focus:border-[#C59E5D] transition-all"
+                  minLength={6}
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF8F2] border border-[#EADBBE] rounded-xl text-[#0F1B2F] text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/40 focus:border-[#C59E5D] transition-all"
                 />
               </div>
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="remember-me"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 text-[#C59E5D] focus:ring-[#C59E5D] border-[#EADBBE] rounded cursor-pointer accent-[#C59E5D]"
-              />
-              <label
-                htmlFor="remember-me"
-                className="ml-2 block text-xs text-[#1C2E4A]/80 cursor-pointer select-none font-medium"
-              >
-                {t('login.rememberMe')}
-              </label>
-            </div>
+            {mode === 'login' && (
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center">
+                  <input
+                    id="remember-me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 text-[#C59E5D] focus:ring-[#C59E5D] border-[#EADBBE] rounded cursor-pointer accent-[#C59E5D]"
+                  />
+                  <label
+                    htmlFor="remember-me"
+                    className="ml-2 block text-xs text-[#1C2E4A]/80 cursor-pointer select-none font-medium"
+                  >
+                    Lembrar credenciais
+                  </label>
+                </div>
+              </div>
+            )}
 
-            {/* Botão Primário: Azul Marinho com hover em Dourado */}
+            {/* Botão Primário: Acessar ou Criar Conta */}
             <button
               type="submit"
-              className="w-full py-3.5 px-4 bg-[#0F1B2F] hover:bg-[#C59E5D] text-white hover:text-[#0F1B2F] font-bold rounded-xl shadow-lg shadow-[#0F1B2F]/20 flex items-center justify-center gap-2 transition-all duration-200 border border-[#C59E5D]/50 transform active:scale-[0.99] cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full py-3 px-4 bg-[#0F1B2F] hover:bg-[#C59E5D] text-white hover:text-[#0F1B2F] font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-[#0F1B2F]/20 flex items-center justify-center gap-2 transition-all duration-200 border border-[#C59E5D]/50 transform active:scale-[0.99] cursor-pointer disabled:opacity-50"
             >
-              <span>{t('login.submitButton')}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#C59E5D]" />
+                  <span>Conectando ao Supabase...</span>
+                </>
+              ) : mode === 'login' ? (
+                <>
+                  <span>Entrar na Sala de Aula</span>
+                  <ArrowRight className="w-4 h-4 text-[#C59E5D]" />
+                </>
+              ) : (
+                <>
+                  <span>Concluir Cadastro de Aluno</span>
+                  <CheckCircle2 className="w-4 h-4 text-[#C59E5D]" />
+                </>
+              )}
             </button>
 
-            {/* Botão Demonstração */}
+            {/* Botão Convidado (Modo Demonstração) */}
             <button
               type="button"
-              onClick={onLoginSuccess}
+              onClick={handleGuestDemo}
+              disabled={isSubmitting}
               className="w-full py-2.5 px-4 bg-[#FAF8F2] hover:bg-[#F2EDE2] text-[#0F1B2F] font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors border border-[#EADBBE] cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-[#C59E5D]" />
-              <span>{t('login.guestDemo')}</span>
+              <span>Acessar como Convidado (Modo Demonstração)</span>
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-[#EADBBE]/60 text-center">
-            <p className="text-xs text-[#1C2E4A]/70">
-              {t('login.noAccount')}{' '}
-              <a
-                href="#register"
-                onClick={(e) => e.preventDefault()}
-                className="font-bold text-[#C59E5D] hover:underline"
-              >
-                {t('login.register')}
-              </a>
-            </p>
+          <div className="mt-6 pt-5 border-t border-[#EADBBE]/60 text-center">
+            {mode === 'login' ? (
+              <p className="text-xs text-[#1C2E4A]/70">
+                Novo aluno na Hemingway School?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register')
+                    setErrorMessage(null)
+                  }}
+                  className="font-bold text-[#C59E5D] hover:underline cursor-pointer"
+                >
+                  Cadastre-se aqui
+                </button>
+              </p>
+            ) : (
+              <p className="text-xs text-[#1C2E4A]/70">
+                Já possui matrícula ativa?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login')
+                    setErrorMessage(null)
+                  }}
+                  className="font-bold text-[#C59E5D] hover:underline cursor-pointer"
+                >
+                  Clique para entrar
+                </button>
+              </p>
+            )}
           </div>
         </div>
       </main>
@@ -168,7 +526,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <footer className="max-w-2xl mx-auto text-center">
         <div className="flex items-center justify-center gap-2 text-xs text-[#1C2E4A]/70">
           <ShieldCheck className="w-4 h-4 text-[#C59E5D] shrink-0" />
-          <span>{t('login.securityNote')}</span>
+          <span>Hemingway School • Autenticação Segura via Supabase Auth</span>
         </div>
       </footer>
     </div>

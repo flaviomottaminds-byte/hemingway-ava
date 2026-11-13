@@ -199,13 +199,13 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
             </div>
 
-            {/* Botão sutil para ciclar perfil na topbar também */}
-            {onToggleRole && (
+            {/* Botão de teste: visível exclusivamente para Admin em ambiente de desenvolvimento */}
+            {import.meta.env.DEV && currentRole === 'admin' && onToggleRole && (
               <button
                 type="button"
                 onClick={onToggleRole}
                 className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-[#C59E5D] hover:text-[#0F1B2F] hover:bg-[#C59E5D] bg-[#1C2E4A]/80 px-2 py-1 rounded-lg border border-[#C59E5D]/40 transition cursor-pointer"
-                title="Ciclar Perfil: Aluno → Professor → Admin"
+                title="Ciclar Perfil: Admin → Aluno (Dev Only)"
               >
                 <Sparkles className="w-3 h-3" />
                 <span>Ciclar</span>
