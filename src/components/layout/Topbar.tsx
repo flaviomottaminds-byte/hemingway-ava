@@ -70,19 +70,16 @@ export const Topbar: React.FC<TopbarProps> = ({
             onClick={onNavigateHome}
             className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
           >
-            <div className="h-11 sm:h-12 flex items-center justify-center px-1.5 rounded-xl bg-white border border-[#C59E5D]/50 shadow-sm group-hover:scale-105 transition-transform shrink-0">
+            <div className="h-11 sm:h-12 flex items-center justify-center px-3 py-1 rounded-xl bg-white border border-[#C59E5D]/50 shadow-sm group-hover:scale-105 transition-transform shrink-0">
               <img
                 src="/logo-hemingway.png"
                 alt="Hemingway School Logo"
-                className="h-9 sm:h-10 w-auto object-contain"
+                className="h-8 sm:h-9 w-auto object-contain"
               />
             </div>
-            <div>
-              <span className="text-lg font-bold text-[#FAF8F2] tracking-tight flex items-center gap-1.5">
-                Hemingway <span className="text-[#C59E5D]">School</span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-[#C59E5D] text-[#0F1B2F] border border-[#C59E5D]">
-                  AVA
-                </span>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-extrabold bg-[#C59E5D] text-[#0F1B2F] border border-[#C59E5D] shadow-xs">
+                AVA
               </span>
               <p className="text-[11px] text-[#EADBBE]/80 hidden sm:block leading-none">
                 {t('common.tagline', 'Ambiente Virtual de Aprendizagem')}

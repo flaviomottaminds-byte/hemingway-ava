@@ -23,21 +23,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       {/* Barra Superior do Login com Seletor de Idioma */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between pb-6 border-b border-[#EADBBE]/80">
         <div className="flex items-center gap-3">
-          <div className="h-12 rounded-xl overflow-hidden bg-white border border-[#C59E5D]/40 shadow-xs flex items-center px-2 shrink-0">
+          <div className="h-12 rounded-xl overflow-hidden bg-white border border-[#C59E5D]/40 shadow-xs flex items-center px-3 shrink-0">
             <img
               src="/logo-hemingway.png"
               alt="Hemingway School Logo"
-              className="h-10 w-auto object-contain"
+              className="h-9 w-auto object-contain"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-[#0F1B2F] tracking-tight">
-              Hemingway <span className="text-[#C59E5D]">School</span>
-            </span>
-            <span className="px-2 py-0.5 text-xs font-bold bg-[#0F1B2F] text-[#FAF8F2] border border-[#C59E5D] rounded-full">
-              AVA
-            </span>
-          </div>
+          <span className="px-2 py-0.5 text-xs font-bold bg-[#0F1B2F] text-[#FAF8F2] border border-[#C59E5D] rounded-full">
+            AVA
+          </span>
         </div>
 
         {/* Seletor com botões ou dropdown no topo */}
@@ -53,12 +48,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <main className="flex-1 flex items-center justify-center my-8">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-[#0F1B2F]/5 border border-[#EADBBE] p-8 sm:p-10 transition-all">
           <div className="text-center mb-8">
-            <div className="inline-flex justify-center mb-4">
-              <div className="h-20 rounded-2xl overflow-hidden bg-[#FAF8F2] border border-[#C59E5D]/40 shadow-xs flex items-center px-4">
+            <div className="inline-flex justify-center mb-5">
+              <div className="h-20 rounded-2xl overflow-hidden bg-white border border-[#C59E5D]/40 shadow-sm flex items-center px-6">
                 <img
                   src="/logo-hemingway.png"
                   alt="Hemingway School Logo"
-                  className="h-16 w-auto object-contain"
+                  className="h-14 w-auto object-contain"
                 />
               </div>
             </div>
