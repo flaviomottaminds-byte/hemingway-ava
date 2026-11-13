@@ -1,11 +1,15 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Printer,
   X,
   Award,
   ShieldCheck,
+  Download,
+  Loader2,
 } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 import type { SupportedLanguageCode } from '../../locales/i18n'
 
 interface CompletionStatementModalProps {
@@ -31,6 +35,7 @@ export const CompletionStatementModal: React.FC<CompletionStatementModalProps> =
 }) => {
   const { i18n } = useTranslation()
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLanguageCode) || 'pt'
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   if (!isOpen) return null
 
@@ -91,8 +96,11 @@ export const CompletionStatementModal: React.FC<CompletionStatementModalProps> =
       verifiedText: 'Documento Oficial com Validade Imediata',
       sealTitle: 'SELO OFICIAL',
       sealSub: 'EXCELÊNCIA ACADÊMICA',
-      printBtn: 'Baixar / Imprimir PDF',
+      downloadBtn: 'Baixar em PDF',
+      downloadingText: 'Gerando PDF...',
+      printBtn: 'Imprimir Declaração',
       closeBtn: 'Fechar',
+      badgeNotice: 'Credencial Oficial com Validade Imediata',
     },
     en: {
       docTitle: 'COURSE COMPLETION STATEMENT',
@@ -110,8 +118,11 @@ export const CompletionStatementModal: React.FC<CompletionStatementModalProps> =
       verifiedText: 'Official Document with Immediate Validity',
       sealTitle: 'OFFICIAL SEAL',
       sealSub: 'ACADEMIC EXCELLENCE',
-      printBtn: 'Download / Print PDF',
+      downloadBtn: 'Download as PDF',
+      downloadingText: 'Generating PDF...',
+      printBtn: 'Print Statement',
       closeBtn: 'Close',
+      badgeNotice: 'Official Credential with Immediate Validity',
     },
     es: {
       docTitle: 'DECLARACIÓN DE FINALIZACIÓN DE CURSO',
@@ -129,8 +140,11 @@ export const CompletionStatementModal: React.FC<CompletionStatementModalProps> =
       verifiedText: 'Documento Oficial con Validez Inmediata',
       sealTitle: 'SELLO OFICIAL',
       sealSub: 'EXCELENCIA ACADÉMICA',
-      printBtn: 'Descargar / Imprimir PDF',
+      downloadBtn: 'Descargar en PDF',
+      downloadingText: 'Generando PDF...',
+      printBtn: 'Imprimir Declaración',
       closeBtn: 'Cerrar',
+      badgeNotice: 'Credencial Oficial con Validez Inmediata',
     },
   }[currentLang]
 
@@ -138,43 +152,116 @@ export const CompletionStatementModal: React.FC<CompletionStatementModalProps> =
     window.print()
   }
 
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById('hemingway-certificate-print')
+    if (!element) return
+
+    try {
+      setIsGeneratingPdf(true)
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#FAF8F2',
+        logging: false,
+      })
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98)
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+
+      // Margem segura
+      const margin = 10
+      const availWidth = pageWidth - margin * 2
+      const availHeight = pageHeight - margin * 2
+
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+      const ratio = Math.min(availWidth / imgWidth, availHeight / imgHeight)
+
+      const renderWidth = imgWidth * ratio
+      const renderHeight = imgHeight * ratio
+
+      const x = (pageWidth - renderWidth) / 2
+      const y = (pageHeight - renderHeight) / 2
+
+      pdf.addImage(imgData, 'JPEG', x, y, renderWidth, renderHeight)
+      pdf.save('Declaracao-Conclusao-Hemingway-School.pdf')
+    } catch (err) {
+      console.error('Erro na geração do PDF:', err)
+      window.print()
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 print:p-0 print:bg-white print:static">
-      <div className="relative w-full max-w-4xl bg-[#FAF8F2] rounded-3xl shadow-2xl border border-[#C59E5D]/50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:rounded-none print:w-full print:max-w-none">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 flex justify-center items-start print:p-0 print:bg-white print:static print:overflow-visible">
+      <div className="relative w-full max-w-4xl my-4 sm:my-8 bg-[#FAF8F2] rounded-3xl shadow-2xl border-2 border-[#C59E5D]/50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:rounded-none print:w-full print:max-w-none print:m-0">
         
-        {/* BARRA SUPERIOR DE AÇÕES (Oculta na Impressão) */}
-        <div className="print:hidden flex items-center justify-between px-6 py-4 bg-[#0F1B2F] border-b border-[#1C2E4A] text-white">
+        {/* BARRA SUPERIOR DE AÇÕES (Oculta na Impressão, fixa no topo) */}
+        <div className="print:hidden sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-5 sm:px-6 py-3.5 sm:py-4 bg-[#0F1B2F] border-b-2 border-[#C59E5D]/60 shadow-lg text-white">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#C59E5D] text-[#0F1B2F] flex items-center justify-center font-bold">
-              <Award className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-[#C59E5D] text-[#0F1B2F] flex items-center justify-center font-bold shrink-0 shadow-sm">
+              <Award className="w-5 h-5 text-[#0F1B2F]" />
             </div>
             <div>
-              <span className="text-sm font-bold text-[#FAF8F2] block leading-tight">
+              <span className="text-xs sm:text-sm font-bold text-[#FAF8F2] block leading-tight">
                 {content.docTitle}
               </span>
-              <span className="text-[11px] text-[#C59E5D]">
-                Hemingway School • Academic Credential
+              <span className="text-[10px] sm:text-[11px] text-[#C59E5D] font-medium">
+                Hemingway School • {content.badgeNotice}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* BOTÕES DE AÇÃO DESTACADOS */}
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+            {/* Botão 1 (Principal): Dourado #C59E5D com texto #0F1B2F */}
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C59E5D] hover:bg-[#B38C4B] active:scale-95 text-[#0F1B2F] font-bold text-xs shadow-md shadow-[#C59E5D]/30 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#0F1B2F]" />
+                  <span>{content.downloadingText}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-[#0F1B2F]" />
+                  <span>{content.downloadBtn}</span>
+                </>
+              )}
+            </button>
+
+            {/* Botão 2 (Secundário): Azul Marinho #0F1B2F com texto branco e borda dourada */}
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] font-bold text-xs shadow-md shadow-[#C59E5D]/30 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0F1B2F] hover:bg-[#1C2E4A] active:scale-95 text-[#FAF8F2] font-bold text-xs border border-[#C59E5D]/70 shadow-sm transition-all cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-[#C59E5D]" />
               <span>{content.printBtn}</span>
             </button>
 
+            {/* Botão 3: Fechar */}
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-[#FAF8F2]/70 hover:text-white hover:bg-[#1C2E4A] rounded-xl transition-colors cursor-pointer"
-              title={content.closeBtn}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#0A1220] hover:bg-[#1C2E4A] text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
+              <span>{content.closeBtn}</span>
             </button>
           </div>
         </div>
@@ -314,6 +401,53 @@ export const CompletionStatementModal: React.FC<CompletionStatementModalProps> =
               </div>
 
             </div>
+          </div>
+        </div>
+
+        {/* BARRA INFERIOR DE AÇÕES (Oculta na Impressão) */}
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-[#0F1B2F] border-t-2 border-[#C59E5D]/60 text-white">
+          <div className="flex items-center gap-2 text-xs text-[#EADBBE]/90">
+            <ShieldCheck className="w-4 h-4 text-[#C59E5D]" />
+            <span>Documento oficial com validade imediata para fins acadêmicos e profissionais.</span>
+          </div>
+
+          <div className="flex items-center gap-2.5 ml-auto">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C59E5D] hover:bg-[#B38C4B] active:scale-95 text-[#0F1B2F] font-bold text-xs shadow-md shadow-[#C59E5D]/30 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#0F1B2F]" />
+                  <span>{content.downloadingText}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-[#0F1B2F]" />
+                  <span>{content.downloadBtn}</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0F1B2F] hover:bg-[#1C2E4A] active:scale-95 text-[#FAF8F2] font-bold text-xs border border-[#C59E5D]/70 shadow-sm transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-[#C59E5D]" />
+              <span>{content.printBtn}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#0A1220] hover:bg-[#1C2E4A] text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>{content.closeBtn}</span>
+            </button>
           </div>
         </div>
 
