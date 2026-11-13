@@ -133,6 +133,8 @@ export interface SupabaseLesson {
   video_url: string
   video_youtube_id?: string
   materials: LessonAttachment[]
+  pdf_url?: string
+  pdf_name?: string
   created_at: string
   updated_at?: string
 }
@@ -210,6 +212,8 @@ export interface Lesson {
   }
   transcription: Record<'pt' | 'en' | 'es', string>
   materials: LessonMaterial[]
+  pdf_url?: string
+  pdf_name?: string
 }
 
 export interface Course {

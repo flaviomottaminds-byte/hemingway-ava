@@ -27,6 +27,8 @@ export interface CreateLessonDTO {
   content_text: string
   video_url: string
   materials: LessonAttachment[]
+  pdf_url?: string
+  pdf_name?: string
 }
 
 class SupabaseLessonService {
@@ -99,6 +101,8 @@ class SupabaseLessonService {
             video_url: videoUrl,
             video_youtube_id: youtubeId,
             materials: (item.materials as LessonAttachment[]) || [],
+            pdf_url: item.pdf_url ? String(item.pdf_url) : undefined,
+            pdf_name: item.pdf_name ? String(item.pdf_name) : undefined,
             created_at: String(item.created_at || new Date().toISOString()),
           }
         })
@@ -138,6 +142,60 @@ class SupabaseLessonService {
   }
 
   /**
+   * Faz upload direto do arquivo PDF para o Supabase Storage no bucket 'lesson-materials'
+   */
+  async uploadLessonPdf(file: File): Promise<{
+    url: string
+    name: string
+    error?: string
+  }> {
+    const fileExt = file.name.split('.').pop() || 'pdf'
+    const cleanBaseName = file.name
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 40)
+    const fileName = `${Date.now()}_${cleanBaseName}.${fileExt}`
+    const filePath = `materials/${fileName}`
+
+    try {
+      const { error } = await supabase.storage
+        .from('lesson-materials')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: 'application/pdf',
+        })
+
+      if (error) {
+        console.warn('Aviso Supabase Storage:', error)
+        const fallbackUrl = URL.createObjectURL(file)
+        return {
+          url: fallbackUrl,
+          name: file.name,
+          error: error.message,
+        }
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('lesson-materials')
+        .getPublicUrl(filePath)
+
+      return {
+        url: publicUrlData.publicUrl,
+        name: file.name,
+      }
+    } catch (err) {
+      console.error('Falha no upload para o Supabase Storage:', err)
+      const fallbackUrl = URL.createObjectURL(file)
+      return {
+        url: fallbackUrl,
+        name: file.name,
+        error: err instanceof Error ? err.message : 'Falha no upload',
+      }
+    }
+  }
+
+  /**
    * Executa INSERT real na tabela lessons do Supabase
    */
   async createLesson(dto: CreateLessonDTO): Promise<SupabaseLesson> {
@@ -153,18 +211,22 @@ class SupabaseLessonService {
       video_url: dto.video_url.trim(),
       video_youtube_id: youtubeId,
       materials: dto.materials,
+      pdf_url: dto.pdf_url,
+      pdf_name: dto.pdf_name,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
     try {
-      // Colunas reais no banco: id, title, content, youtube_url, sequence_order, discipline_id
+      // Colunas reais no banco: id, title, content, youtube_url, sequence_order, discipline_id, pdf_url, pdf_name
       const insertPayload = {
         title: dto.title.trim(),
         content: dto.content_text,
         youtube_url: dto.video_url.trim(),
         sequence_order: dto.sequence_order,
         discipline_id: dto.discipline_id || 'disc-03',
+        pdf_url: dto.pdf_url || null,
+        pdf_name: dto.pdf_name || null,
       }
 
       const { data, error } = await supabase
@@ -200,6 +262,8 @@ class SupabaseLessonService {
           ...(dto.content_text !== undefined && { content: dto.content_text }),
           ...(dto.video_url !== undefined && { youtube_url: dto.video_url.trim() }),
           ...(dto.sequence_order !== undefined && { sequence_order: dto.sequence_order }),
+          ...(dto.pdf_url !== undefined && { pdf_url: dto.pdf_url }),
+          ...(dto.pdf_name !== undefined && { pdf_name: dto.pdf_name }),
         })
         .eq('id', id)
     } catch (err) {

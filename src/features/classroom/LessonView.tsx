@@ -63,9 +63,22 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
   const instructorRole = lesson.instructor.role[currentLang] || lesson.instructor.role.en
 
   // Extração do ID do YouTube a partir da URL da aula do Supabase
-  const videoUrl = supabaseLesson?.video_url || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-  const youtubeId =
-    supabaseLesson?.video_youtube_id || extractYouTubeId(videoUrl) || 'dQw4w9WgXcQ'
+  const rawVideoUrl = supabaseLesson?.video_url ?? (lesson.videoUrl || '')
+  const hasVideo = Boolean(rawVideoUrl && rawVideoUrl.trim().length > 0)
+  const videoUrl = hasVideo ? rawVideoUrl : ''
+  const youtubeId = hasVideo ? (supabaseLesson?.video_youtube_id || extractYouTubeId(videoUrl)) : null
+
+  // Material em PDF oficial da aula (Supabase Storage)
+  const pdfUrl =
+    supabaseLesson?.pdf_url ||
+    lesson.pdf_url ||
+    lesson.materials.find((m) => m.type === 'pdf' && m.url && m.url !== '#')?.url ||
+    null
+  const pdfName =
+    supabaseLesson?.pdf_name ||
+    lesson.pdf_name ||
+    lesson.materials.find((m) => m.type === 'pdf')?.title ||
+    'Material-Oficial-Aula.pdf'
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -151,9 +164,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </div>
       </div>
 
-      {/* Player de Vídeo Real do YouTube conectado ao Supabase */}
-      <div className="relative aspect-video w-full rounded-3xl bg-slate-950 overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center">
-        {youtubeId ? (
+      {/* 1. Player de Vídeo do YouTube (Exibido acima se houver vídeo) */}
+      {hasVideo && youtubeId && (
+        <div className="relative aspect-video w-full rounded-3xl bg-slate-950 overflow-hidden shadow-2xl border-2 border-[#0F1B2F] flex items-center justify-center">
           <iframe
             className="w-full h-full border-0 rounded-3xl"
             src={`https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&modestbranding=1&enablejsapi=1`}
@@ -161,12 +174,78 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           />
-        ) : (
-          <div className="text-center text-slate-400 p-6">
-            <p className="text-sm">Nenhum vídeo do YouTube vinculado a esta aula.</p>
+        </div>
+      )}
+
+      {/* 2. Visualizador Nativo do Material em PDF (Protagonista da Aula / Diagramação Original) */}
+      {pdfUrl && (
+        <div className="rounded-3xl overflow-hidden border-2 border-[#0F1B2F] bg-white shadow-2xl ring-2 ring-[#C59E5D]/40 transition-all">
+          {/* Barra de Ferramentas Superior do PDF */}
+          <div className="bg-[#0F1B2F] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-[#C59E5D]/50">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2.5 rounded-2xl bg-[#C59E5D]/20 border border-[#C59E5D]/50 text-[#C59E5D] shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-[#C59E5D] text-[#0F1B2F] shadow-xs">
+                    Material Oficial
+                  </span>
+                  <span className="text-xs text-[#EADBBE]/90 truncate font-mono">
+                    {pdfName}
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-[#FAF8F2] truncate mt-0.5">
+                  {currentTitle}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              {/* Botão "Abrir em Nova Guia / Tela Cheia" */}
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C2E4A] hover:bg-[#253e63] text-[#FAF8F2] border border-[#C59E5D]/40 transition-colors shadow-xs"
+                title="Abrir PDF em nova guia ou tela cheia"
+              >
+                <ExternalLink className="w-4 h-4 text-[#C59E5D]" />
+                <span>Abrir em Nova Guia / Tela Cheia</span>
+              </a>
+
+              {/* Botão "Baixar Material em PDF" */}
+              <a
+                href={pdfUrl}
+                download={pdfName}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md transition-colors"
+                title="Baixar Material em PDF"
+              >
+                <Download className="w-4 h-4" />
+                <span>Baixar Material em PDF</span>
+              </a>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Iframe Nativo com height: 800px e Diagramação Original Fiel */}
+          <div className="relative w-full bg-slate-900" style={{ height: '800px' }}>
+            <iframe
+              src={`${pdfUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+              className="w-full h-full border-0"
+              title={pdfName}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Caso não haja vídeo nem PDF cadastrados */}
+      {!hasVideo && !pdfUrl && (
+        <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+          <FileText className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+          <h3 className="text-sm font-bold text-slate-800">Nenhum material de aula anexado</h3>
+          <p className="text-xs text-slate-500 mt-1">O professor ou administrador ainda não realizou o upload do PDF desta aula.</p>
+        </div>
+      )}
 
       {/* Abas de Conteúdo Pedagógico */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">

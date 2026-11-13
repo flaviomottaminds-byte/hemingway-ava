@@ -26,6 +26,11 @@ import {
   Sparkles,
   Database,
   GraduationCap,
+  ExternalLink,
+  Loader2,
+  UploadCloud,
+  FileCheck,
+  RefreshCw,
 } from 'lucide-react'
 import type {
   SupabaseCourse,
@@ -36,6 +41,7 @@ import type {
 import { courseService } from '../../services/courseService'
 import { curriculumService } from '../../services/curriculumService'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
+import { extractTextFromPdf } from '../../utils/pdfExtractor'
 
 interface TeacherLessonEditorViewProps {
   lessonId?: string | null
@@ -79,6 +85,14 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   const [durationMinutes, setDurationMinutes] = useState<number | string>(25)
   const [contentText, setContentText] = useState('')
   const [editorMode, setEditorMode] = useState<'write' | 'preview'>('write')
+
+  // Módulo Principal: Material da Aula em PDF (Supabase Storage + pdfjs-dist)
+  const [pdfUrl, setPdfUrl] = useState<string>('')
+  const [pdfName, setPdfName] = useState<string>('')
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false)
+  const [isExtractingPdf, setIsExtractingPdf] = useState(false)
+  const [pdfDragActive, setPdfDragActive] = useState(false)
+  const pdfFileInputRef = useRef<HTMLInputElement>(null)
 
   // Mídia e Vídeo do YouTube
   const [videoUrl, setVideoUrl] = useState('')
@@ -127,27 +141,15 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   // Carrega dados da aula se estiver em modo de edição
   useEffect(() => {
     if (!lessonId) {
-      // Padrão para nova aula
+      // Padrão para nova aula (limpo, aguardando PDF ou digitação)
       setTitle('')
       setSequenceOrder(1)
       setDurationMinutes(20)
-      setContentText(`## 📘 Introdução ao Estudo
-
-Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta aula...
-
-### Principais Objetivos
-1. Compreender os fundamentos práticos.
-2. Aplicar o conhecimento nas situações do dia a dia nos EUA.`)
-      setVideoUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
-      setMaterials([
-        {
-          id: 'mat-sample-1',
-          name: 'Apostila_Resumo_Aula_PDF.pdf',
-          size: '1.4 MB',
-          type: 'pdf',
-          url: '#',
-        },
-      ])
+      setContentText('')
+      setVideoUrl('')
+      setMaterials([])
+      setPdfUrl('')
+      setPdfName('')
       return
     }
 
@@ -159,8 +161,10 @@ Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta a
           setSequenceOrder(data.sequence_order)
           setDurationMinutes(data.duration_minutes)
           setContentText(data.content_text)
-          setVideoUrl(data.video_url)
+          setVideoUrl(data.video_url || '')
           setMaterials(data.materials || [])
+          if (data.pdf_url) setPdfUrl(data.pdf_url)
+          if (data.pdf_name) setPdfName(data.pdf_name)
           if (data.course_id) setSelectedCourseId(data.course_id)
           if (data.discipline_id) setSelectedDisciplineId(data.discipline_id)
         }
@@ -177,6 +181,63 @@ Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta a
     const id = extractYouTubeId(videoUrl)
     setDetectedYouTubeId(id)
   }, [videoUrl])
+
+  // Processamento do Arquivo PDF (Upload Supabase + Extração pdfjs-dist)
+  const handleProcessPdfFile = async (file: File) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      showToast('Por favor, selecione um arquivo no formato PDF (.pdf).')
+      return
+    }
+
+    // 1. Preenche o Título da Aula se estiver em branco
+    if (!title.trim()) {
+      const autoTitle = file.name
+        .replace(/\.pdf$/i, '')
+        .replace(/[-_]/g, ' ')
+        .trim()
+      setTitle(autoTitle)
+    }
+
+    // 2. Upload para o bucket 'lesson-materials' do Supabase Storage
+    setIsUploadingPdf(true)
+    try {
+      const uploadRes = await lessonService.uploadLessonPdf(file)
+      setPdfUrl(uploadRes.url)
+      setPdfName(uploadRes.name)
+      if (uploadRes.error) {
+        showToast(`Aviso Storage: ${uploadRes.error}. Utilizando URL de teste.`)
+      } else {
+        showToast('PDF enviado com sucesso ao Supabase Storage!')
+      }
+    } catch (err: any) {
+      console.error('Erro no upload do PDF:', err)
+      showToast('Falha no upload do arquivo para o Supabase.')
+    } finally {
+      setIsUploadingPdf(false)
+    }
+
+    // 3. Extração automática de texto via pdfjs-dist em segundo plano
+    setIsExtractingPdf(true)
+    try {
+      const extractedText = await extractTextFromPdf(file)
+      if (extractedText && extractedText.trim()) {
+        setContentText(extractedText)
+        showToast('Texto do PDF extraído e indexado com sucesso!')
+      }
+    } catch (err) {
+      console.warn('Erro ao extrair texto do PDF via pdfjs-dist:', err)
+    } finally {
+      setIsExtractingPdf(false)
+    }
+  }
+
+  // Remove ou desvincula o PDF da aula
+  const handleRemovePdf = () => {
+    setPdfUrl('')
+    setPdfName('')
+    showToast('Material em PDF removido desta aula.')
+  }
 
   // Informações do Curso e Disciplina para Breadcrumbs
   const currentCourse = courses.find((c) => c.id === selectedCourseId)
@@ -243,8 +304,8 @@ Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta a
     const errs: Record<string, string> = {}
     if (!title.trim()) {
       errs.title = 'O título da aula é obrigatório.'
-    } else if (title.trim().length < 4) {
-      errs.title = 'O título deve ter no mínimo 4 caracteres.'
+    } else if (title.trim().length < 3) {
+      errs.title = 'O título deve ter no mínimo 3 caracteres.'
     }
 
     if (!selectedCourseId) {
@@ -255,8 +316,9 @@ Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta a
       errs.discipline = 'Selecione a disciplina vinculada.'
     }
 
-    if (!contentText.trim()) {
-      errs.content = 'O texto-base (apostila) da aula não pode ficar vazio.'
+    // O texto-base é OPCIONAL caso o professor tenha enviado um arquivo PDF
+    if (!contentText.trim() && !pdfUrl) {
+      errs.content = 'Envie o arquivo PDF da aula ou informe um texto-base na apostila.'
     }
 
     if (videoUrl.trim() && !detectedYouTubeId) {
@@ -282,6 +344,8 @@ Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta a
         content_text: contentText,
         video_url: videoUrl.trim(),
         materials,
+        pdf_url: pdfUrl || undefined,
+        pdf_name: pdfName || undefined,
       }
 
       let saved: SupabaseLesson
@@ -504,13 +568,189 @@ Escreva aqui o conteúdo da apostila e os tópicos que o aluno estudará nesta a
             </div>
           </div>
 
-          {/* 2. TEXTO-BASE (APOSTILA) COM SIMULADOR DE EDITOR RICO (WYSIWYG) */}
+          {/* ================= MÓDULO PRINCIPAL: UPLOAD DO MATERIAL DA AULA (PDF) ================= */}
+          <div className="bg-white p-5 rounded-3xl border-2 border-[#C59E5D]/60 shadow-md space-y-4 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#0F1B2F] via-[#C59E5D] to-[#0F1B2F]" />
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-[#0F1B2F] text-[#C59E5D] shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-extrabold text-[#0F1B2F] uppercase tracking-wide">
+                      Upload do Material da Aula (PDF)
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
+                      Padrão Hemingway
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Conectado ao Supabase Storage (bucket:{' '}
+                    <code className="text-[#0F1B2F] font-bold">lesson-materials</code>)
+                  </p>
+                </div>
+              </div>
+
+              {pdfUrl && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <FileCheck className="w-4 h-4 text-emerald-600" />
+                  <span>PDF Vinculado</span>
+                </span>
+              )}
+            </div>
+
+            <input
+              ref={pdfFileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleProcessPdfFile(e.target.files[0])
+                }
+              }}
+            />
+
+            {!pdfUrl ? (
+              /* Área de Drag & Drop para PDF */
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setPdfDragActive(true)
+                }}
+                onDragLeave={() => setPdfDragActive(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setPdfDragActive(false)
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleProcessPdfFile(e.dataTransfer.files[0])
+                  }
+                }}
+                onClick={() => {
+                  if (!isUploadingPdf && !isExtractingPdf) {
+                    pdfFileInputRef.current?.click()
+                  }
+                }}
+                className={`p-8 border-2 border-dashed rounded-3xl text-center cursor-pointer transition-all ${
+                  pdfDragActive
+                    ? 'border-[#C59E5D] bg-[#FAF8F2] scale-[0.99] shadow-inner ring-4 ring-[#C59E5D]/20'
+                    : 'border-[#C59E5D]/50 hover:border-[#C59E5D] bg-[#FAF8F2]/60 hover:bg-[#FAF8F2]'
+                }`}
+              >
+                {isUploadingPdf || isExtractingPdf ? (
+                  <div className="py-4 space-y-3">
+                    <Loader2 className="w-10 h-10 text-[#C59E5D] animate-spin mx-auto" />
+                    <p className="text-xs font-bold text-[#0F1B2F]">
+                      {isUploadingPdf
+                        ? 'Enviando arquivo PDF para o Supabase Storage...'
+                        : 'Extraindo e indexando texto do documento via pdfjs-dist...'}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Aguarde enquanto estruturamos o material e indexamos a aula.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-[#0F1B2F] text-[#C59E5D] flex items-center justify-center mx-auto mb-3 shadow-md hover:scale-105 transition-transform">
+                      <UploadCloud className="w-7 h-7" />
+                    </div>
+                    <h4 className="text-sm font-bold text-[#0F1B2F]">
+                      Arraste e solte o arquivo da aula aqui ou{' '}
+                      <span className="text-[#C59E5D] hover:underline">clique para selecionar</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+                      Formato <strong>.PDF</strong>. O documento será gravado no Supabase Storage e exibido no visualizador nativo da Sala de Aula com 100% da diagramação original.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white border border-slate-200 text-slate-600">
+                        ⚡ Extração automática de texto (pdfjs-dist)
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white border border-slate-200 text-slate-600">
+                        🏷️ Título automático pelo nome do arquivo
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white border border-slate-200 text-slate-600">
+                        ☁️ Bucket: lesson-materials
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              /* Card de PDF Anexado */
+              <div className="p-4 rounded-2xl bg-[#FAF8F2] border border-[#C59E5D]/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-3 rounded-2xl bg-red-600 text-white font-bold text-xs shrink-0 shadow-xs flex items-center justify-center">
+                      PDF
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#0F1B2F] truncate">
+                        {pdfName || 'Material-Aula.pdf'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {pdfUrl}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0F1B2F] text-[#FAF8F2] hover:bg-[#1C2E4A] flex items-center gap-1.5 transition cursor-pointer"
+                      title="Abrir PDF em nova aba para conferência"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-[#C59E5D]" />
+                      <span>Visualizar</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => pdfFileInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 flex items-center gap-1.5 transition cursor-pointer"
+                      title="Substituir por outro arquivo PDF"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-[#C59E5D]" />
+                      <span>Substituir</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRemovePdf}
+                      className="p-2 rounded-xl text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition cursor-pointer"
+                      title="Remover PDF desta aula"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Material configurado como <strong>Visualizador Principal</strong> na Sala de Aula.</span>
+                  </div>
+                  {isExtractingPdf && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-[#C59E5D] font-bold">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Indexando texto...
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 2. TEXTO-BASE (APOSTILA / CONTEÚDO INDEXADO) */}
           <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-600" />
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Texto-Base (Apostila do Estudo) <span className="text-red-500">*</span>
+                  Texto-Base / Conteúdo Indexado {pdfUrl ? '(Opcional)' : <span className="text-red-500">*</span>}
                 </h3>
               </div>
 
