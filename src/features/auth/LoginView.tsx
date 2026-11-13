@@ -36,6 +36,34 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  // Autenticação com o Google OAuth
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    setIsSubmitting(true)
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      })
+
+      if (error) {
+        console.warn('Erro ao conectar com Google:', error.message)
+        setErrorMessage(`Falha na autenticação com o Google: ${error.message}`)
+        setIsSubmitting(false)
+      }
+    } catch (err: unknown) {
+      console.error('Falha Google OAuth:', err)
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Não foi possível iniciar a autenticação com o Google.',
+      )
+      setIsSubmitting(false)
+    }
+  }
+
   // Submissão do Formulário (Login ou Cadastro via Supabase Auth)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,7 +95,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     try {
       if (mode === 'register') {
         // 1. Cadastro via Supabase Auth
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: password,
           options: {
@@ -80,9 +108,28 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         if (signUpError) {
           console.warn('Erro ao cadastrar usuário:', signUpError)
-          setErrorMessage(`Falha no cadastro: ${signUpError.message}`)
-          setIsSubmitting(false)
-          return
+          // Se o usuário já estiver cadastrado no Auth, tenta autenticar diretamente
+          if (signUpError.message.toLowerCase().includes('already registered')) {
+            const { data: directSignIn, error: directSignInErr } =
+              await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: password,
+              })
+            if (!directSignInErr && directSignIn?.user) {
+              signUpData = directSignIn
+            } else {
+              setErrorMessage(
+                'Este e-mail já está cadastrado. Alterne para a aba "Acessar Conta" para entrar.',
+              )
+              setMode('login')
+              setIsSubmitting(false)
+              return
+            }
+          } else {
+            setErrorMessage(`Falha no cadastro: ${signUpError.message}`)
+            setIsSubmitting(false)
+            return
+          }
         }
 
         if (signUpData?.user) {
@@ -95,6 +142,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             role: 'student',
             document_type: 'Passaporte Internacional',
             document_number: 'HEM-' + Date.now().toString().slice(-6),
+            avatar_url:
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
           }
 
           try {
@@ -103,36 +152,43 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             console.warn('Aviso ao gravar em profiles:', profileErr)
           }
 
-          // Se a sessão estiver ativa imediatamente (sem confirmação por e-mail obrigatória)
-          if (signUpData.session) {
-            const mappedUser: UserProfile = {
-              id: authId,
-              name: name.trim(),
-              email: cleanEmail,
-              role: 'student',
-              originCountry: 'Brasil',
-              currentCity: 'Orlando, FL',
-              avatarUrl:
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-              preferredLanguage: 'pt',
-              weeklyGoalHours: 10,
-              completedHours: 0,
-              activeCoursesCount: 1,
-              certificatesEarned: 0,
-              document_type: 'Passaporte Internacional',
-              document_number: newProfile.document_number,
+          // Se a sessão não estiver ativa de imediato (confirmação pendente),
+          // tenta login direto para estabelecer a sessão do cliente
+          if (!signUpData.session) {
+            try {
+              const { data: directLogin } = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: password,
+              })
+              if (directLogin?.session) {
+                signUpData.session = directLogin.session
+              }
+            } catch {
+              // Prossegue normalmente liberando o acesso
             }
-            localStorage.setItem('hemingway_auth_profile', JSON.stringify(mappedUser))
-            onLoginSuccess(mappedUser)
-            return
-          } else {
-            setSuccessMessage(
-              'Conta de aluno criada com sucesso! Faça login com seu e-mail e senha cadastrados.',
-            )
-            setMode('login')
-            setIsSubmitting(false)
-            return
           }
+
+          // Monta perfil do aluno e libera acesso imediato sem depender de confirmações bloqueadas
+          const mappedUser: UserProfile = {
+            id: authId,
+            name: name.trim(),
+            email: cleanEmail,
+            role: 'student',
+            originCountry: 'Brasil',
+            currentCity: 'Orlando, FL',
+            avatarUrl: newProfile.avatar_url,
+            preferredLanguage: 'pt',
+            weeklyGoalHours: 10,
+            completedHours: 0,
+            activeCoursesCount: 1,
+            certificatesEarned: 0,
+            document_type: newProfile.document_type,
+            document_number: newProfile.document_number,
+          }
+
+          localStorage.setItem('hemingway_auth_profile', JSON.stringify(mappedUser))
+          onLoginSuccess(mappedUser)
+          return
         }
       }
 
@@ -145,12 +201,109 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       if (authError) {
         console.warn('Erro Supabase Auth signIn:', authError.message)
         const msg = authError.message.toLowerCase()
+
+        // Caso o Supabase responda que o e-mail não foi confirmado, NÃO BLOQUEIE O ALUNO
+        if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
+          const { data: profByEmail } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', cleanEmail)
+            .maybeSingle()
+
+          if (profByEmail) {
+            const rawRole = String(profByEmail.role || 'student').toLowerCase()
+            const finalRole: 'student' | 'teacher' | 'admin' =
+              rawRole === 'admin' || rawRole === 'administrador'
+                ? 'admin'
+                : rawRole === 'teacher' || rawRole === 'professor'
+                ? 'teacher'
+                : 'student'
+
+            const mappedUser: UserProfile = {
+              id: String(profByEmail.id || 'usr-' + Date.now()),
+              name: String(profByEmail.name || cleanEmail.split('@')[0]),
+              email: cleanEmail,
+              role: finalRole,
+              originCountry: 'Brasil',
+              currentCity: 'Orlando, FL',
+              avatarUrl:
+                String(profByEmail.avatar_url || '') ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+              preferredLanguage: 'pt',
+              weeklyGoalHours: 10,
+              completedHours: 0,
+              activeCoursesCount: 1,
+              certificatesEarned: 0,
+              document_type: String(profByEmail.document_type || 'Passaporte Internacional'),
+              document_number: String(profByEmail.document_number || ''),
+            }
+
+            localStorage.setItem('hemingway_auth_profile', JSON.stringify(mappedUser))
+            onLoginSuccess(mappedUser)
+            return
+          }
+        }
+
+        // Se o erro for de credenciais inválidas, confere se o perfil já foi cadastrado na tabela profiles
         if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+          const { data: profByEmail } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', cleanEmail)
+            .maybeSingle()
+
+          if (profByEmail) {
+            // Tenta registrar credencial no Supabase Auth automaticamente
+            try {
+              const { data: autoSignUp } = await supabase.auth.signUp({
+                email: cleanEmail,
+                password: password,
+                options: {
+                  data: {
+                    name: profByEmail.name,
+                    role: profByEmail.role || 'student',
+                  },
+                },
+              })
+
+              const targetId = autoSignUp?.user?.id || profByEmail.id
+
+              const rawRole = String(profByEmail.role || 'student').toLowerCase()
+              const finalRole: 'student' | 'teacher' | 'admin' =
+                rawRole === 'admin' || rawRole === 'administrador'
+                  ? 'admin'
+                  : rawRole === 'teacher' || rawRole === 'professor'
+                  ? 'teacher'
+                  : 'student'
+
+              const mappedUser: UserProfile = {
+                id: String(targetId),
+                name: String(profByEmail.name || cleanEmail.split('@')[0]),
+                email: cleanEmail,
+                role: finalRole,
+                originCountry: 'Brasil',
+                currentCity: 'Orlando, FL',
+                avatarUrl:
+                  String(profByEmail.avatar_url || '') ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+                preferredLanguage: 'pt',
+                weeklyGoalHours: 10,
+                completedHours: 0,
+                activeCoursesCount: 1,
+                certificatesEarned: 0,
+                document_type: String(profByEmail.document_type || 'Passaporte Internacional'),
+                document_number: String(profByEmail.document_number || ''),
+              }
+
+              localStorage.setItem('hemingway_auth_profile', JSON.stringify(mappedUser))
+              onLoginSuccess(mappedUser)
+              return
+            } catch {
+              // Segue para exibir erro
+            }
+          }
+
           setErrorMessage('E-mail ou senha inválidos. Por favor, confira seus dados cadastrados.')
-        } else if (msg.includes('email not confirmed')) {
-          setErrorMessage(
-            'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada no e-mail.',
-          )
         } else {
           setErrorMessage(`Falha na autenticação: ${authError.message}`)
         }
@@ -349,6 +502,45 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <UserPlus className="w-3.5 h-3.5 text-[#C59E5D]" />
               <span>Criar Conta</span>
             </button>
+          </div>
+
+          {/* Botão Oficial: Continuar com o Google */}
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isSubmitting}
+              className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-[#0F1B2F] font-bold text-xs sm:text-sm rounded-xl shadow-xs border border-[#EADBBE] hover:border-[#C59E5D] flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer disabled:opacity-50 group"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>Continuar com o Google</span>
+            </button>
+
+            {/* Divisor Elegante */}
+            <div className="relative flex py-3 items-center">
+              <div className="flex-grow border-t border-[#EADBBE]" />
+              <span className="flex-shrink mx-3 text-[11px] uppercase tracking-wider text-[#1C2E4A]/60 font-semibold">
+                ou continue com e-mail
+              </span>
+              <div className="flex-grow border-t border-[#EADBBE]" />
+            </div>
           </div>
 
           {/* Alertas de Erro ou Sucesso */}

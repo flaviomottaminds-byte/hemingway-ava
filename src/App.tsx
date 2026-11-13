@@ -31,60 +31,166 @@ export function App() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
   const [editingAssessmentId, setEditingAssessmentId] = useState<string | null>(null)
 
+  // Sincroniza sessão ativa do Supabase Auth e garante perfil existente na tabela profiles
+  const syncUserSession = async (session: { user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) => {
+    if (!session?.user) return false
+
+    const authId = session.user.id
+    const authEmail = session.user.email || ''
+
+    // 1. Busca registro na tabela profiles pelo ID do Auth
+    let profileData: Record<string, unknown> | null = null
+
+    try {
+      const { data: profById } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authId)
+        .maybeSingle()
+
+      if (profById) {
+        profileData = profById
+      } else if (authEmail) {
+        // 2. Fallback: busca por e-mail caso o usuário tenha sido pré-cadastrado
+        const { data: profByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', authEmail)
+          .maybeSingle()
+
+        if (profByEmail) {
+          profileData = profByEmail
+          // Vincula o ID do Auth ao perfil
+          try {
+            await supabase.from('profiles').update({ id: authId }).eq('email', authEmail)
+          } catch {
+            // Prossegue normalmente
+          }
+        }
+      }
+
+      // 3. Se ainda não existir registro em profiles (ex: novo login pelo Google OAuth),
+      // cria automaticamente o perfil com role = 'student' para não travar o acesso
+      if (!profileData) {
+        const meta = session.user.user_metadata || {}
+        const rawMetaRole = String(meta.role || 'student').toLowerCase()
+        const assignedRole: 'student' | 'teacher' | 'admin' =
+          rawMetaRole === 'admin' || rawMetaRole === 'administrador'
+            ? 'admin'
+            : rawMetaRole === 'teacher' || rawMetaRole === 'professor'
+            ? 'teacher'
+            : 'student'
+
+        const displayName = String(
+          meta.full_name ||
+            meta.name ||
+            meta.user_name ||
+            (authEmail ? authEmail.split('@')[0] : 'Aluno Hemingway'),
+        )
+
+        const avatarUrl = String(
+          meta.avatar_url ||
+            meta.picture ||
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+        )
+
+        const docNumber = 'HEM-' + Date.now().toString().slice(-6)
+
+        const newProfile = {
+          id: authId,
+          email: authEmail,
+          name: displayName,
+          role: assignedRole,
+          avatar_url: avatarUrl,
+          document_type: 'Passaporte Internacional',
+          document_number: docNumber,
+        }
+
+        try {
+          const { data: inserted, error: insErr } = await supabase
+            .from('profiles')
+            .upsert([newProfile])
+            .select()
+            .maybeSingle()
+
+          if (!insErr && inserted) {
+            profileData = inserted
+          } else {
+            profileData = newProfile
+          }
+        } catch (insertErr) {
+          console.warn('Aviso ao sincronizar profiles após login/OAuth:', insertErr)
+          profileData = newProfile
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar tabela profiles:', e)
+    }
+
+    // 4. Determina role e monta perfil final do usuário
+    const meta = session.user.user_metadata || {}
+    const rawRole = String(
+      profileData?.role || meta.role || 'student',
+    ).toLowerCase()
+
+    const role: 'student' | 'teacher' | 'admin' =
+      rawRole === 'admin' || rawRole === 'administrador'
+        ? 'admin'
+        : rawRole === 'teacher' || rawRole === 'professor'
+        ? 'teacher'
+        : 'student'
+
+    const userObj: UserProfile = {
+      id: String(profileData?.id || authId),
+      name: String(
+        profileData?.name ||
+          meta.full_name ||
+          meta.name ||
+          (authEmail ? authEmail.split('@')[0] : 'Aluno'),
+      ),
+      email: authEmail,
+      role,
+      originCountry: 'Brasil',
+      currentCity: 'Orlando, FL',
+      avatarUrl:
+        String(profileData?.avatar_url || meta.avatar_url || meta.picture || '') ||
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+      preferredLanguage: 'pt',
+      weeklyGoalHours: 10,
+      completedHours: 0,
+      activeCoursesCount: 1,
+      certificatesEarned: 0,
+      document_type: String(profileData?.document_type || 'Passaporte Internacional'),
+      document_number: String(profileData?.document_number || ''),
+    }
+
+    setCurrentUser(userObj)
+    setCurrentRole(role)
+    setIsAuthenticated(true)
+    setActiveView(role === 'student' ? 'dashboard' : 'teacher-courses')
+    localStorage.setItem('hemingway_auth_profile', JSON.stringify(userObj))
+
+    // Limpa tokens da URL após retorno do Google OAuth
+    if (window.location.hash.includes('access_token=') || window.location.search.includes('code=')) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+
+    return true
+  }
+
   // Restauração de Sessão Real do Supabase Auth no carregamento
   useEffect(() => {
+    let isMounted = true
+
     const checkSession = async () => {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        if (session?.user) {
-          const authId = session.user.id
-          const authEmail = session.user.email || ''
-
-          // Consulta o registro correspondente na tabela profiles
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', authId)
-            .maybeSingle()
-
-          const rawRole = String(
-            prof?.role || session.user.user_metadata?.role || 'student',
-          ).toLowerCase()
-
-          const role: 'student' | 'teacher' | 'admin' =
-            rawRole === 'admin' || rawRole === 'administrador'
-              ? 'admin'
-              : rawRole === 'teacher' || rawRole === 'professor'
-              ? 'teacher'
-              : 'student'
-
-          const userObj: UserProfile = {
-            id: String(prof?.id || authId),
-            name: String(prof?.name || session.user.user_metadata?.name || authEmail.split('@')[0] || 'Aluno'),
-            email: authEmail,
-            role,
-            originCountry: 'Brasil',
-            currentCity: 'Orlando, FL',
-            avatarUrl:
-              String(prof?.avatar_url || '') ||
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-            preferredLanguage: 'pt',
-            weeklyGoalHours: 10,
-            completedHours: 0,
-            activeCoursesCount: 1,
-            certificatesEarned: 0,
-            document_type: String(prof?.document_type || 'Passaporte Internacional'),
-            document_number: String(prof?.document_number || ''),
-          }
-
-          setCurrentUser(userObj)
-          setCurrentRole(role)
-          setIsAuthenticated(true)
-          setActiveView(role === 'student' ? 'dashboard' : 'teacher-courses')
-          return
+        if (session?.user && isMounted) {
+          const synced = await syncUserSession(session)
+          if (synced) return
         }
       } catch (err) {
         console.warn('Erro ao restaurar sessão do Supabase:', err)
@@ -92,7 +198,7 @@ export function App() {
 
       // Restaura dados cacheados locais
       const cached = localStorage.getItem('hemingway_auth_profile')
-      if (cached) {
+      if (cached && isMounted) {
         try {
           const parsed: UserProfile = JSON.parse(cached)
           if (parsed && parsed.email) {
@@ -109,9 +215,14 @@ export function App() {
 
     checkSession()
 
-    // Listener para eventos de login/logout no Supabase
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    // Listener para eventos de login/logout no Supabase (inclui retorno do Google OAuth)
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (
+        (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') &&
+        session
+      ) {
+        await syncUserSession(session)
+      } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false)
         setCurrentUser(mockUser)
         setCurrentRole('student')
@@ -120,6 +231,7 @@ export function App() {
     })
 
     return () => {
+      isMounted = false
       authListener.subscription.unsubscribe()
     }
   }, [])
