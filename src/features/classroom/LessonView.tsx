@@ -50,8 +50,6 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
 
   // Estado da aula real do Supabase
   const [supabaseLesson, setSupabaseLesson] = useState<SupabaseLesson | null>(null)
-  const [isSupabaseLive, setIsSupabaseLive] = useState(false)
-  const [supabaseError, setSupabaseError] = useState<string | null>(null)
 
   useEffect(() => {
     lessonService.getLessonsWithStatus().then((res) => {
@@ -63,10 +61,6 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
           ) || res.data[0]
 
         setSupabaseLesson(targetLesson)
-        setIsSupabaseLive(res.isLive)
-      }
-      if (res.error) {
-        setSupabaseError(res.error)
       }
     })
   }, [])
@@ -177,27 +171,6 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
           )}
         </div>
       </div>
-
-      {/* Alerta de Status de Conexão com o Supabase */}
-      {isSupabaseLive ? (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl flex items-center justify-between gap-2 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-bold">Supabase Conectado:</span>
-            <span>Aula carregada da tabela 'lessons' do banco PostgreSQL</span>
-          </div>
-          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-emerald-200/60 text-emerald-900 shrink-0">
-            Realtime DB
-          </span>
-        </div>
-      ) : supabaseError ? (
-        <div className="p-3 bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-2xl flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>
-            Supabase conectado (prnwtlpopoeymcamtcja.supabase.co). Carregando estudo <strong>"Compreendendo o Formulário W-2, 1099 e Direitos no Trabalho"</strong> com player de vídeo integrado.
-          </span>
-        </div>
-      ) : null}
 
       {/* Títulos e Identificação da Aula */}
       <div>
