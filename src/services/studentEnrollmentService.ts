@@ -11,160 +11,9 @@ import { supabase } from '../lib/supabase'
 const STORAGE_KEY_STUDENTS = 'ava_supabase_students_directory'
 const STORAGE_KEY_ENROLLMENTS = 'ava_supabase_enrollments'
 
-const INITIAL_STUDENTS: SupabaseStudent[] = [
-  {
-    id: 'std-01',
-    name: 'Mateo Silva Santos',
-    email: 'mateo.silva@exemplo.com',
-    document_id: '123.456.789-00', // CPF / ITIN 987-65-4321
-    phone: '+1 (407) 555-0192',
-    avatar_url:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-    status: 'active',
-    temporary_password: 'Pass2026@Mateo',
-    created_at: '2026-01-10T10:00:00Z',
-  },
-  {
-    id: 'std-02',
-    name: 'Gabriela Ortiz Morales',
-    email: 'gabriela.ortiz@exemplo.com',
-    document_id: '987.654.321-11',
-    phone: '+1 (305) 555-0144',
-    avatar_url:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=250&q=80',
-    status: 'active',
-    temporary_password: 'Pass2026@Gabi',
-    created_at: '2026-01-15T11:20:00Z',
-  },
-  {
-    id: 'std-03',
-    name: 'Juan Carlos Ramirez',
-    email: 'jc.ramirez@exemplo.com',
-    document_id: '456.789.123-22',
-    phone: '+1 (713) 555-0188',
-    avatar_url:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80',
-    status: 'inactive',
-    temporary_password: 'Pass2026@Juan',
-    created_at: '2026-01-20T14:30:00Z',
-  },
-  {
-    id: 'std-04',
-    name: 'Beatriz Albuquerque Lima',
-    email: 'beatriz.lima@exemplo.com',
-    document_id: '789.123.456-33',
-    phone: '+1 (617) 555-0176',
-    avatar_url:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=250&q=80',
-    status: 'active',
-    temporary_password: 'Pass2026@Bia',
-    created_at: '2026-01-25T09:10:00Z',
-  },
-  {
-    id: 'std-05',
-    name: 'Carlos Mendoza Vasquez',
-    email: 'carlos.mendoza@exemplo.com',
-    document_id: '321.654.987-44',
-    phone: '+1 (404) 555-0131',
-    avatar_url:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80',
-    status: 'active',
-    temporary_password: 'Pass2026@Carlos',
-    created_at: '2026-02-01T15:40:00Z',
-  },
-  {
-    id: 'std-06',
-    name: 'Sofia Navarro Castillo',
-    email: 'sofia.navarro@exemplo.com',
-    document_id: '654.987.321-55',
-    phone: '+1 (213) 555-0165',
-    avatar_url:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=250&q=80',
-    status: 'inactive',
-    temporary_password: 'Pass2026@Sofia',
-    created_at: '2026-02-05T16:15:00Z',
-  },
-  {
-    id: 'std-07',
-    name: 'Lucas Ferreira Diniz',
-    email: 'lucas.diniz@exemplo.com',
-    document_id: '159.357.486-66',
-    phone: '+1 (973) 555-0128',
-    avatar_url:
-      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=250&q=80',
-    status: 'active',
-    temporary_password: 'Pass2026@Lucas',
-    created_at: '2026-02-10T12:00:00Z',
-  },
-]
-
-const INITIAL_ENROLLMENTS: SupabaseEnrollment[] = [
-  // Mateo Silva em 2 cursos
-  {
-    id: 'enr-01',
-    student_id: 'std-01',
-    course_id: 'crs-101',
-    status: 'active',
-    enrolled_at: '2026-01-12T10:00:00Z',
-  },
-  {
-    id: 'enr-02',
-    student_id: 'std-01',
-    course_id: 'crs-102',
-    status: 'active',
-    enrolled_at: '2026-01-15T14:00:00Z',
-  },
-
-  // Gabriela Ortiz
-  {
-    id: 'enr-03',
-    student_id: 'std-02',
-    course_id: 'crs-102',
-    status: 'completed',
-    enrolled_at: '2026-01-18T09:30:00Z',
-  },
-  {
-    id: 'enr-04',
-    student_id: 'std-02',
-    course_id: 'crs-103',
-    status: 'active',
-    enrolled_at: '2026-02-01T11:00:00Z',
-  },
-
-  // Juan Carlos Ramirez
-  {
-    id: 'enr-05',
-    student_id: 'std-03',
-    course_id: 'crs-102',
-    status: 'blocked',
-    enrolled_at: '2026-01-22T16:00:00Z',
-  },
-
-  // Beatriz Lima
-  {
-    id: 'enr-06',
-    student_id: 'std-04',
-    course_id: 'crs-101',
-    status: 'active',
-    enrolled_at: '2026-01-26T10:15:00Z',
-  },
-  {
-    id: 'enr-07',
-    student_id: 'std-04',
-    course_id: 'crs-104',
-    status: 'active',
-    enrolled_at: '2026-02-05T13:45:00Z',
-  },
-
-  // Carlos Mendoza
-  {
-    id: 'enr-08',
-    student_id: 'std-05',
-    course_id: 'crs-101',
-    status: 'active',
-    enrolled_at: '2026-02-02T08:30:00Z',
-  },
-]
+// Inicialização limpa (sem dados fictícios fixos)
+const INITIAL_STUDENTS: SupabaseStudent[] = []
+const INITIAL_ENROLLMENTS: SupabaseEnrollment[] = []
 
 export interface CreateStudentDTO {
   name: string
@@ -189,8 +38,7 @@ class StudentEnrollmentService {
     } catch (e) {
       console.warn('Erro ao carregar diretório de estudantes:', e)
     }
-    this.saveStudents(INITIAL_STUDENTS)
-    return INITIAL_STUDENTS
+    return []
   }
 
   private saveStudents(items: SupabaseStudent[]): void {
@@ -208,8 +56,7 @@ class StudentEnrollmentService {
     } catch (e) {
       console.warn('Erro ao carregar matrículas:', e)
     }
-    this.saveEnrollments(INITIAL_ENROLLMENTS)
-    return INITIAL_ENROLLMENTS
+    return []
   }
 
   private saveEnrollments(items: SupabaseEnrollment[]): void {
@@ -232,25 +79,29 @@ class StudentEnrollmentService {
         .select('*')
         .eq('role', 'aluno')
 
-      if (!error && data && data.length > 0) {
-        list = data.map((item: Record<string, unknown>, idx: number) => {
-          return {
-            id: String(item.id || `std-${idx}`),
-            name: String(item.name || 'Aluno Sem Nome'),
-            email: String(item.email || ''),
-            document_id: String(item.document_number || item.document_id || 'DOC-USA-2026'),
-            document_type: String(item.document_type || 'Passaporte'),
-            document_number: String(item.document_number || item.document_id || ''),
-            phone: String(item.phone || '+1 (407) 555-0100'),
-            avatar_url:
-              String(item.avatar_url || '') ||
-              `https://images.unsplash.com/photo-${1534528741775 + idx * 50}?auto=format&fit=crop&w=250&q=80`,
-            status: (item.status as StudentStatus) || 'active',
-            temporary_password: String(item.temporary_password || 'Pass2026@Aluno'),
-            created_at: String(item.created_at || new Date().toISOString()),
-          }
-        })
-        this.saveStudents(list)
+      if (!error && data) {
+        if (data.length === 0) {
+          list = this.loadStudents()
+        } else {
+          list = data.map((item: Record<string, unknown>, idx: number) => {
+            return {
+              id: String(item.id || `std-${idx}`),
+              name: String(item.name || 'Aluno Sem Nome'),
+              email: String(item.email || ''),
+              document_id: String(item.document_number || item.document_id || 'DOC-USA-2026'),
+              document_type: String(item.document_type || 'Passaporte'),
+              document_number: String(item.document_number || item.document_id || ''),
+              phone: String(item.phone || '+1 (407) 555-0100'),
+              avatar_url:
+                String(item.avatar_url || '') ||
+                `https://images.unsplash.com/photo-${1534528741775 + idx * 50}?auto=format&fit=crop&w=250&q=80`,
+              status: (item.status as StudentStatus) || 'active',
+              temporary_password: String(item.temporary_password || 'Pass2026@Aluno'),
+              created_at: String(item.created_at || new Date().toISOString()),
+            }
+          })
+          this.saveStudents(list)
+        }
       } else {
         if (error) {
           console.warn('Supabase profiles (aluno) warning:', error)
@@ -411,14 +262,18 @@ class StudentEnrollmentService {
         .select('*')
         .eq('student_id', studentId)
 
-      if (!error && data && data.length > 0) {
-        enrollments = data.map((item: Record<string, unknown>, idx: number) => ({
-          id: String(item.id || `enr-supa-${idx}`),
-          student_id: String(item.student_id || studentId),
-          course_id: String(item.course_id || ''),
-          status: (item.status as EnrollmentStatus) || 'active',
-          enrolled_at: String(item.enrolled_at || new Date().toISOString()),
-        }))
+      if (!error && data) {
+        if (data.length === 0) {
+          enrollments = this.loadEnrollments().filter((e) => e.student_id === studentId)
+        } else {
+          enrollments = data.map((item: Record<string, unknown>, idx: number) => ({
+            id: String(item.id || `enr-supa-${idx}`),
+            student_id: String(item.student_id || studentId),
+            course_id: String(item.course_id || ''),
+            status: (item.status as EnrollmentStatus) || 'active',
+            enrolled_at: String(item.enrolled_at || new Date().toISOString()),
+          }))
+        }
       } else {
         enrollments = this.loadEnrollments().filter((e) => e.student_id === studentId)
       }
@@ -448,7 +303,7 @@ class StudentEnrollmentService {
     studentId: string,
     courseId: string,
     status: EnrollmentStatus = 'active',
-  ): Promise<SupabaseEnrollment> {
+  ): Promise<{ enrollment: SupabaseEnrollment; supabaseError: string | null }> {
     const enrollments = this.loadEnrollments()
 
     // Verifica se já está matriculado localmente
@@ -468,6 +323,8 @@ class StudentEnrollmentService {
       updated_at: new Date().toISOString(),
     }
 
+    let supabaseError: string | null = null
+
     try {
       const { data, error } = await supabase
         .from('enrollments')
@@ -485,15 +342,17 @@ class StudentEnrollmentService {
       if (!error && data) {
         newEnrollment.id = String(data.id || newEnrollment.id)
       } else if (error) {
+        supabaseError = `Supabase (${error.code || 'INSERT'}): ${error.message}`
         console.warn('Erro ao inserir matrícula no Supabase:', error)
       }
-    } catch (err) {
+    } catch (err: any) {
+      supabaseError = err?.message || 'Falha na requisição ao Supabase'
       console.warn('Falha na requisição ao Supabase enrollments:', err)
     }
 
     const updated = [newEnrollment, ...enrollments]
     this.saveEnrollments(updated)
-    return newEnrollment
+    return { enrollment: newEnrollment, supabaseError }
   }
 
   /**

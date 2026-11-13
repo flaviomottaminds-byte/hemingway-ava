@@ -15,22 +15,27 @@ import {
   GraduationCap,
   ShieldAlert,
   Info,
+  Users,
 } from 'lucide-react'
-import type { SupabaseCourse } from '../../types'
+import type { SupabaseCourse, UserProfile } from '../../types'
 import { courseService } from '../../services/courseService'
 import type { CreateCourseDTO, UpdateCourseDTO } from '../../services/courseService'
+import { courseTeacherService } from '../../services/courseTeacherService'
 import { CourseFormModal } from './components/CourseFormModal'
 import { CourseDisciplinesModal } from './components/CourseDisciplinesModal'
 import { CourseDeleteDialog } from './components/CourseDeleteDialog'
+import { CourseTeachersModal } from './components/CourseTeachersModal'
 
 interface TeacherCourseManagementViewProps {
   onNavigateToCurriculum?: (courseId: string) => void
   currentRole?: 'student' | 'teacher' | 'admin'
+  currentUser?: UserProfile
 }
 
 export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewProps> = ({
   onNavigateToCurriculum,
   currentRole = 'admin',
+  currentUser,
 }) => {
   const [courses, setCourses] = useState<SupabaseCourse[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -46,6 +51,10 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
   const [selectedCourseForDisciplines, setSelectedCourseForDisciplines] =
     useState<SupabaseCourse | null>(null)
   const [isDisciplinesModalOpen, setIsDisciplinesModalOpen] = useState(false)
+
+  const [selectedCourseForTeachers, setSelectedCourseForTeachers] =
+    useState<SupabaseCourse | null>(null)
+  const [isTeachersModalOpen, setIsTeachersModalOpen] = useState(false)
 
   const [selectedCourseForDelete, setSelectedCourseForDelete] =
     useState<SupabaseCourse | null>(null)
@@ -186,14 +195,16 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
     showToast('Banco de dados de demonstração restaurado para o padrão.')
   }
 
-  // Simulação de atribuição de cursos:
-  // Se for Professor, exibe apenas os cursos atribuídos a ele
+  // Simulação e vínculo real de atribuição de cursos:
+  // Se for Professor, exibe apenas os cursos vinculados a ele
+  const teacherId = currentUser?.id || 'usr-teacher-01'
   const baseCourses =
     currentRole === 'teacher'
       ? courses.filter(
           (c) =>
-            c.instructor_name.includes('Leonardo') ||
-            c.instructor_name.includes('Marcus') ||
+            courseTeacherService.isTeacherAssigned(teacherId, c.id) ||
+            c.instructor_name?.includes('Leonardo') ||
+            c.instructor_name?.includes('Marcus') ||
             c.id === 'crs-101' ||
             c.id === 'crs-104',
         )
@@ -580,6 +591,20 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
                     <span>Disciplinas</span>
                   </button>
 
+                  {/* Vincular Professores ao Curso */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCourseForTeachers(course)
+                      setIsTeachersModalOpen(true)
+                    }}
+                    className="py-2 px-3 text-xs font-semibold text-[#0F1B2F] bg-[#FAF8F2] hover:bg-[#EADBBE]/50 border border-[#C59E5D]/40 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Vincular professores a este curso"
+                  >
+                    <Users className="w-3.5 h-3.5 text-[#C59E5D]" />
+                    <span className="hidden sm:inline">Professores</span>
+                  </button>
+
                   {/* Excluir */}
                   <button
                     type="button"
@@ -618,6 +643,16 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
         }}
         onUpdateDisciplinesCount={handleUpdateDisciplinesCount}
         onNavigateToCurriculum={onNavigateToCurriculum}
+      />
+
+      <CourseTeachersModal
+        course={selectedCourseForTeachers}
+        isOpen={isTeachersModalOpen}
+        onClose={() => {
+          setIsTeachersModalOpen(false)
+          setSelectedCourseForTeachers(null)
+        }}
+        onTeachersChanged={fetchCourses}
       />
 
       <CourseDeleteDialog

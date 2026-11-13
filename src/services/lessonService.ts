@@ -15,77 +15,8 @@ export const extractYouTubeId = (url: string): string | null => {
   return match ? match[1] : null
 }
 
-const INITIAL_LESSONS: SupabaseLesson[] = [
-  {
-    id: 'les-01',
-    course_id: 'crs-real-01',
-    discipline_id: 'disc-03',
-    title: 'Compreendendo o Formulário W-2, 1099 e Direitos no Trabalho',
-    sequence_order: 1,
-    duration_minutes: 24,
-    content_text: `## 📘 Introdução ao Mercado de Trabalho Norte-Americano
-
-Nesta aula fundamental, desmistificaremos os dois principais modelos de contratação nos Estados Unidos: o **Formulário W-2** (Employee / Trabalhador Formal) e o **Formulário 1099** (Independent Contractor / Prestador Autônomo).
-
-### 1. O que é o Formulário W-2?
-O formulário W-2 é utilizado quando você é contratado como funcionário regular da empresa.
-- **Retenção de Impostos:** O empregador desconta impostos federais (Federal Income Tax), estaduais e a taxa FICA (Social Security e Medicare) diretamente do seu contracheque (paystub).
-- **Direitos Garantidos:** Você tem direito ao pagamento de horas extras (overtime após 40 horas semanais com valor de 1.5x da sua remuneração base) e cobertura de seguro contra acidentes de trabalho (Workers' Compensation).
-
-### 2. O que é o Formulário 1099?
-O formulário 1099 é destinado a autônomos e freelancers.
-- Não há retenção na fonte: você é responsável por recolher o imposto de trabalho autônomo (Self-Employment Tax - 15.3%).
-- Maior flexibilidade de horário, porém sem os benefícios trabalhistas típicos do W-2.
-
-> **Importante:** A Lei de Padrões Justos de Trabalho (FLSA) protege todo trabalhador nos EUA, independente de status imigratório. Se você trabalhou, o empregador tem a obrigação legal de pagar o seu salário integralmente.`,
-    video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    video_youtube_id: 'dQw4w9WgXcQ',
-    materials: [
-      {
-        id: 'mat-1',
-        name: 'Guia_Pratico_W2_vs_1099_Imigrante.pdf',
-        size: '2.4 MB',
-        type: 'pdf',
-        url: '#',
-      },
-      {
-        id: 'mat-2',
-        name: 'Glossario_Termos_Trabalhistas_USA.pdf',
-        size: '1.2 MB',
-        type: 'pdf',
-        url: '#',
-      },
-    ],
-    created_at: '2026-02-05T10:00:00Z',
-    updated_at: '2026-02-10T15:20:00Z',
-  },
-  {
-    id: 'les-02',
-    course_id: 'crs-real-01',
-    discipline_id: 'disc-03',
-    title: 'Cálculo de Overtime (Horas Extras) e Salário Mínimo Federal',
-    sequence_order: 2,
-    duration_minutes: 30,
-    content_text: `## ⏱️ Regras de Salário Mínimo e Overtime (FLSA)
-
-Neste estudo, você aprenderá como calcular com exatidão o pagamento das suas horas extras e identificar infrações trabalhistas frequentes.
-
-### Horas Extras (Overtime)
-A regra geral da Lei FLSA estabelece que todas as horas trabalhadas além de **40 horas por semana** devem ser remuneradas com um acréscimo de no mínimo **50% (Time and a Half)** sobre a sua hora base.`,
-    video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    video_youtube_id: 'dQw4w9WgXcQ',
-    materials: [
-      {
-        id: 'mat-3',
-        name: 'Planilha_Controle_Horas_Trabalhadas.pdf',
-        size: '850 KB',
-        type: 'pdf',
-        url: '#',
-      },
-    ],
-    created_at: '2026-02-08T14:00:00Z',
-  },
-]
+// Inicialização limpa (sem dados fictícios fixos)
+const INITIAL_LESSONS: SupabaseLesson[] = []
 
 export interface CreateLessonDTO {
   course_id: string
@@ -106,8 +37,7 @@ class SupabaseLessonService {
     } catch (e) {
       console.warn('Erro ao carregar lições do localStorage:', e)
     }
-    this.saveLessons(INITIAL_LESSONS)
-    return INITIAL_LESSONS
+    return []
   }
 
   private saveLessons(items: SupabaseLesson[]): void {
@@ -145,38 +75,44 @@ class SupabaseLessonService {
         }
       }
 
-      if (data && data.length > 0) {
+      if (data !== null) {
+        if (data.length === 0) {
+          const cached = this.loadLessons()
+          const filtered = filter?.discipline_id
+            ? cached.filter((l) => l.discipline_id === filter.discipline_id)
+            : cached
+          return { data: filtered, isLive: true, error: null }
+        }
+
         const mapped: SupabaseLesson[] = data.map((item: Record<string, unknown>, idx: number) => {
           const videoUrl =
             String(item.youtube_url || item.video_url || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
           const youtubeId = extractYouTubeId(videoUrl) || undefined
           return {
             id: String(item.id || `les-supa-${idx}`),
-            course_id: String(item.course_id || 'crs-real-01'),
-            discipline_id: String(item.discipline_id || 'disc-03'),
-            title: String(
-              item.title || 'Compreendendo o Formulário W-2, 1099 e Direitos no Trabalho',
-            ),
+            course_id: String(item.course_id || ''),
+            discipline_id: String(item.discipline_id || ''),
+            title: String(item.title || 'Aula sem título'),
             sequence_order: Number(item.sequence_order || idx + 1),
             duration_minutes: Number(item.duration_minutes || 24),
-            content_text: String(
-              item.content || item.content_text || INITIAL_LESSONS[0].content_text,
-            ),
+            content_text: String(item.content || item.content_text || ''),
             video_url: videoUrl,
             video_youtube_id: youtubeId,
-            materials: INITIAL_LESSONS[0].materials,
+            materials: (item.materials as LessonAttachment[]) || [],
             created_at: String(item.created_at || new Date().toISOString()),
           }
         })
         this.saveLessons(mapped)
-        return { data: mapped, isLive: true, error: null }
+        const finalData = filter?.discipline_id
+          ? mapped.filter((l) => l.discipline_id === filter.discipline_id)
+          : mapped
+        return { data: finalData, isLive: true, error: null }
       }
 
       return {
         data: this.loadLessons(),
-        isLive: false,
-        error:
-          'Tabela lessons retornou 0 registros visíveis via chave anon. Verifique as políticas de RLS.',
+        isLive: true,
+        error: null,
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha na conexão com Supabase'

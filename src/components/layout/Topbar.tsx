@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Bell,
@@ -10,8 +10,10 @@ import {
   LogOut,
   Sparkles,
   ShieldAlert,
+  Trash2,
 } from 'lucide-react'
 import { LanguageSelector } from '../common/LanguageSelector'
+import { WipeDatabaseModal } from '../dev/WipeDatabaseModal'
 import type { UserProfile, ActiveView } from '../../types'
 
 interface TopbarProps {
@@ -36,6 +38,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleRole,
 }) => {
   const { t } = useTranslation()
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false)
 
   let ringColor = 'ring-[#C59E5D]/60'
   let roleBadgeClass = 'bg-[#C59E5D]/20 text-[#C59E5D] border border-[#C59E5D]/40'
@@ -219,8 +222,26 @@ export const Topbar: React.FC<TopbarProps> = ({
               <LogOut className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Botão Admin para Zerar Banco de Dados */}
+          {currentRole === 'admin' && (
+            <button
+              type="button"
+              onClick={() => setIsWipeModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 flex items-center gap-1.5 transition cursor-pointer shadow-xs ml-1"
+              title="Zerar todos os dados de teste no Supabase"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Zerar Dados</span>
+            </button>
+          )}
         </div>
       </div>
+
+      <WipeDatabaseModal
+        isOpen={isWipeModalOpen}
+        onClose={() => setIsWipeModalOpen(false)}
+      />
     </header>
   )
 }

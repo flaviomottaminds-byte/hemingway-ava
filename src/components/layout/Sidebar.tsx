@@ -43,32 +43,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  // 1. Menu para perfil ADMIN (Administrativo Institucional)
-  // Links: "Visão Global de Cursos", "Gestão de Alunos e Matrículas", "Gestão de Equipe (Cadastro de Professores/Staff)" e "Relatórios Gerais"
+  // 1. Menu para perfil ADMIN (Administrativo Institucional - Controle Total)
   const adminNavItems = [
     {
+      id: 'teacher-analytics' as ActiveView,
+      label: 'Painel Geral & Métricas',
+      icon: LayoutDashboard,
+      badge: 'Geral',
+    },
+    {
       id: 'teacher-courses' as ActiveView,
-      label: 'Visão Global de Cursos',
+      label: 'Gestão de Cursos',
       icon: GraduationCap,
       badge: 'Todos',
     },
     {
+      id: 'teacher-curriculum' as ActiveView,
+      label: 'Disciplinas & Grades',
+      icon: Layers,
+      badge: 'Curricular',
+    },
+    {
+      id: 'teacher-lesson-editor' as ActiveView,
+      label: 'Gestão de Aulas',
+      icon: PenTool,
+      badge: 'Aulas',
+    },
+    {
       id: 'teacher-students' as ActiveView,
-      label: 'Gestão de Alunos e Matrículas',
+      label: 'Alunos & Matrículas',
       icon: Users,
       badge: 'Matrículas',
     },
     {
       id: 'teacher-team' as ActiveView,
-      label: 'Gestão de Equipe (Professores/Staff)',
+      label: 'Professores & Equipe',
       icon: ShieldCheck,
-      badge: 'RBAC',
+      badge: 'Equipe',
     },
     {
-      id: 'teacher-analytics' as ActiveView,
-      label: 'Relatórios Gerais',
-      icon: BarChart3,
-      badge: 'Global',
+      id: 'teacher-assessments' as ActiveView,
+      label: 'Avaliações & Quizzes',
+      icon: FileQuestion,
+      badge: null,
     },
   ]
 

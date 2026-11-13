@@ -169,6 +169,7 @@ export function App() {
           {activeView === 'teacher-courses' && (
             <TeacherCourseManagementView
               currentRole={currentRole}
+              currentUser={currentUser}
               onNavigateToCurriculum={(courseId) => {
                 setSelectedCurriculumCourseId(courseId)
                 setActiveView('teacher-curriculum')

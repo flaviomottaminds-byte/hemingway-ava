@@ -3,80 +3,8 @@ import { supabase } from '../lib/supabase'
 
 const STORAGE_KEY_TEAM = 'ava_supabase_team_profiles'
 
-const INITIAL_TEAM: SupabaseTeamProfile[] = [
-  {
-    id: 'team-01',
-    name: 'Dra. Elena Vasquez',
-    email: 'elena.vasquez@hemingway.school',
-    phone: '+1 (407) 555-0101',
-    role: 'admin',
-    status: 'active',
-    document_type: 'Passaporte',
-    document_number: 'USA-7749201',
-    avatar_url:
-      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=250&q=80',
-    temporary_password: 'Admin2026@Elena',
-    created_at: '2025-10-01T08:00:00Z',
-  },
-  {
-    id: 'team-02',
-    name: 'Prof. Marcus Vance',
-    email: 'marcus.vance@hemingway.school',
-    phone: '+1 (305) 555-0102',
-    role: 'coordinator',
-    status: 'active',
-    document_type: 'Driver License',
-    document_number: 'FL-DL-883921',
-    avatar_url:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-    temporary_password: 'Coord2026@Marcus',
-    created_at: '2025-11-15T09:30:00Z',
-  },
-  {
-    id: 'team-03',
-    name: 'Prof. Leonardo Dias',
-    email: 'leonardo.dias@hemingway.school',
-    phone: '+1 (617) 555-0103',
-    role: 'teacher',
-    status: 'active',
-    document_type: 'ITIN / Passaporte',
-    document_number: '987-65-4321',
-    avatar_url:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80',
-    assigned_discipline_ids: ['disc-01', 'disc-02'],
-    temporary_password: 'Prof2026@Leo',
-    created_at: '2025-12-01T10:00:00Z',
-  },
-  {
-    id: 'team-04',
-    name: 'Mariana Gomez',
-    email: 'mariana.gomez@hemingway.school',
-    phone: '+1 (713) 555-0104',
-    role: 'teacher',
-    status: 'active',
-    document_type: 'Passaporte',
-    document_number: 'BRA-3392019',
-    avatar_url:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=250&q=80',
-    assigned_discipline_ids: ['disc-03', 'disc-04', 'disc-08'],
-    temporary_password: 'Prof2026@Mari',
-    created_at: '2026-01-10T14:20:00Z',
-  },
-  {
-    id: 'team-05',
-    name: 'Camila Prado',
-    email: 'camila.prado@hemingway.school',
-    phone: '+1 (404) 555-0105',
-    role: 'support',
-    status: 'active',
-    document_type: 'ID Estadual',
-    document_number: 'GA-9920139',
-    avatar_url:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=250&q=80',
-    temporary_password: 'Sup2026@Camila',
-    created_at: '2026-01-18T11:45:00Z',
-  },
-]
+// Inicialização limpa (sem dados fictícios fixos)
+const INITIAL_TEAM: SupabaseTeamProfile[] = []
 
 export interface CreateTeamMemberDTO {
   name: string
@@ -99,8 +27,7 @@ class SupabaseTeamService {
     } catch (e) {
       console.warn('Erro ao carregar equipe do localStorage:', e)
     }
-    this.saveTeam(INITIAL_TEAM)
-    return INITIAL_TEAM
+    return []
   }
 
   private saveTeam(items: SupabaseTeamProfile[]): void {

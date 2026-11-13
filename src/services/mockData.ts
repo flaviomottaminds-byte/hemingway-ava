@@ -2,17 +2,17 @@ import type { Course, Lesson, UserProfile } from '../types'
 
 export const mockUser: UserProfile = {
   id: 'usr_immigrant_101',
-  name: 'Mateo Silva Santos',
-  email: 'mateo.silva@exemplo.com',
+  name: 'Aluno de Teste (Hemingway)',
+  email: 'aluno@hemingway.school',
   role: 'student',
   originCountry: 'Brasil',
   currentCity: 'Orlando, Florida, USA',
   avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
   preferredLanguage: 'pt',
   weeklyGoalHours: 10,
-  completedHours: 14.5,
-  activeCoursesCount: 4,
-  certificatesEarned: 2,
+  completedHours: 0,
+  activeCoursesCount: 0,
+  certificatesEarned: 0,
   document_type: 'Passaporte Internacional',
   document_number: 'USA-8839201',
 }
@@ -27,9 +27,9 @@ export const mockTeacherUser: UserProfile = {
   avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80',
   preferredLanguage: 'pt',
   weeklyGoalHours: 20,
-  completedHours: 32,
-  activeCoursesCount: 3,
-  certificatesEarned: 5,
+  completedHours: 0,
+  activeCoursesCount: 0,
+  certificatesEarned: 0,
 }
 
 export const mockAdminUser: UserProfile = {
@@ -42,105 +42,13 @@ export const mockAdminUser: UserProfile = {
   avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=250&q=80',
   preferredLanguage: 'pt',
   weeklyGoalHours: 40,
-  completedHours: 40,
-  activeCoursesCount: 12,
-  certificatesEarned: 24,
+  completedHours: 0,
+  activeCoursesCount: 0,
+  certificatesEarned: 0,
 }
 
-export const mockCourses: Course[] = [
-  {
-    id: 'course-1',
-    title: {
-      pt: 'Inglês Prático para o Mercado de Trabalho nos EUA',
-      en: 'Practical English for the US Job Market',
-      es: 'Inglés Práctico para el Mercado Laboral en EE. UU.',
-    },
-    description: {
-      pt: 'Vocabulário essencial, entrevistas de emprego, comunicação por e-mail e rotina profissional americana.',
-      en: 'Essential vocabulary, job interviews, email communication, and American professional routine.',
-      es: 'Vocabulario esencial, entrevistas de trabajo, redacción de correos y rutina laboral en EE. UU.',
-    },
-    category: 'language',
-    progressPercentage: 100,
-    totalLessons: 18,
-    completedLessons: 18,
-    thumbnail: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80',
-    badgeText: {
-      pt: 'Curso Concluído',
-      en: 'Course Completed',
-      es: 'Curso Completado',
-    },
-  },
-  {
-    id: 'course-2',
-    title: {
-      pt: 'Direitos Trabalhistas e Leis Básicas de Imigração',
-      en: 'Workplace Rights & Fundamentals of Immigration Law',
-      es: 'Derechos Laborales y Leyes Básicas de Inmigración',
-    },
-    description: {
-      pt: 'Aprenda sobre salários mínimos, horas extras, formulários W-2 e 1099, OSHA e seus direitos fundamentais.',
-      en: 'Understand minimum wage, overtime regulations, W-2 vs 1099, OSHA, and protected civil rights.',
-      es: 'Comprende el salario mínimo, horas extras, formularios W-2 y 1099, OSHA y tus derechos fundamentales.',
-    },
-    category: 'rights',
-    progressPercentage: 45,
-    totalLessons: 12,
-    completedLessons: 5,
-    thumbnail: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=600&q=80',
-    badgeText: {
-      pt: 'Essencial',
-      en: 'Essential',
-      es: 'Esencial',
-    },
-  },
-  {
-    id: 'course-3',
-    title: {
-      pt: 'Sistema Financeiro nos EUA & Construção de Credit Score',
-      en: 'US Financial System & Credit Score Building',
-      es: 'Sistema Financiero en EE. UU. y Construcción de Puntaje de Crédito',
-    },
-    description: {
-      pt: 'Como abrir conta bancária com ITIN ou SSN, construir pontuação FICO e evitar fraudes financeiras comuns.',
-      en: 'How to open bank accounts using ITIN or SSN, build a solid FICO score, and steer clear of predatory scams.',
-      es: 'Cómo abrir cuentas bancarias con ITIN o SSN, generar buen historial FICO y evitar fraudes financieros.',
-    },
-    category: 'finance',
-    progressPercentage: 20,
-    totalLessons: 10,
-    completedLessons: 2,
-    thumbnail: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=600&q=80',
-    badgeText: {
-      pt: 'Finanças Pessoais',
-      en: 'Personal Finance',
-      es: 'Finanzas Personales',
-    },
-  },
-  {
-    id: 'course-4',
-    title: {
-      pt: 'Preparatório para o Teste Cívico de Cidadania Americana',
-      en: 'Preparation for the US Civics Citizenship Test',
-      es: 'Preparación para el Examen de Ciudadanía y Civismo de EE. UU.',
-    },
-    description: {
-      pt: 'Estudo guiado das 100 perguntas oficiais do USCIS, história americana, governo e simulados práticos.',
-      en: 'Guided review of official 100 USCIS civic questions, American history, government, and mock oral tests.',
-      es: 'Revisión guiada de las 100 preguntas oficiales de USCIS, historia, gobierno estadounidense y simulaciones.',
-    },
-    category: 'civics',
-    progressPercentage: 10,
-    totalLessons: 25,
-    completedLessons: 2,
-    thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
-    badgeText: {
-      pt: 'Cidadania',
-      en: 'Citizenship',
-      es: 'Ciudadanía',
-    },
-  },
-]
+// Cursos mockados zerados para início limpo dos testes reais
+export const mockCourses: Course[] = []
 
 export const mockLesson: Lesson = {
   id: 'lesson-rights-201',

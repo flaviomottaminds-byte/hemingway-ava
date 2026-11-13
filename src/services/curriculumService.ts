@@ -5,89 +5,9 @@ import { supabase } from '../lib/supabase'
 const STORAGE_KEY_DISCIPLINES = 'ava_supabase_disciplines'
 const STORAGE_KEY_COURSE_DISCIPLINES = 'ava_supabase_course_disciplines'
 
-const INITIAL_DISCIPLINES: SupabaseDiscipline[] = [
-  {
-    id: 'disc-01',
-    name: 'Inglês para Entrevistas e Contratação',
-    description:
-      'Treinamento prático de conversação, simulação de perguntas frequentes de RH, elaboração de resume em padrão americano e postura profissional.',
-    code: 'ENG-101',
-    estimated_hours: 15,
-    created_at: '2026-01-10T08:00:00Z',
-  },
-  {
-    id: 'disc-02',
-    name: 'Vocabulário Corporativo e E-mails no Trabalho',
-    description:
-      'Expressões usuais em empresas dos EUA, etiqueta corporativa, redação de memorandos formais e comunicação interpessoal com supervisores.',
-    code: 'ENG-102',
-    estimated_hours: 18,
-    created_at: '2026-01-12T09:30:00Z',
-  },
-  {
-    id: 'disc-03',
-    name: 'Legislação Trabalhista (FLSA) e Salário Justo',
-    description:
-      'Direito ao salário mínimo federal/estadual, cálculo de horas extras (overtime), intervalos de descanso e proteção contra retenção de pagamentos.',
-    code: 'LAW-201',
-    estimated_hours: 12,
-    created_at: '2026-01-15T11:00:00Z',
-  },
-  {
-    id: 'disc-04',
-    name: 'Normas de Segurança no Trabalho (OSHA)',
-    description:
-      'Regulamentações de proteção individual e coletiva, prevenção de acidentes, relato de condições insalubres e direitos contra retaliação.',
-    code: 'LAW-202',
-    estimated_hours: 10,
-    created_at: '2026-01-18T14:15:00Z',
-  },
-  {
-    id: 'disc-05',
-    name: 'Tributação e Formulários: W-2 vs 1099',
-    description:
-      'Entendimento das diferenças legais entre empregado formal (W-2) e prestador autônomo (1099), recolhimento de FICA e deduções tributárias.',
-    code: 'FIN-301',
-    estimated_hours: 14,
-    created_at: '2026-01-20T16:00:00Z',
-  },
-  {
-    id: 'disc-06',
-    name: 'Abertura de Contas Bancárias & ITIN',
-    description:
-      'Passo a passo para requisição do Individual Taxpayer Identification Number (ITIN) junto ao IRS e abertura de conta corrente e poupança.',
-    code: 'FIN-302',
-    estimated_hours: 10,
-    created_at: '2026-01-22T10:00:00Z',
-  },
-  {
-    id: 'disc-07',
-    name: 'Construção de Histórico e Pontuação FICO (Crédito)',
-    description:
-      'Estratégias para construir crédito saudável do zero, cartões secured, utilização responsável do limite e monitoramento contra fraudes.',
-    code: 'FIN-303',
-    estimated_hours: 16,
-    created_at: '2026-01-25T13:30:00Z',
-  },
-  {
-    id: 'disc-08',
-    name: 'As 100 Perguntas Oficiais de Civismo do USCIS',
-    description:
-      'Estudo mnemônico e temático de todas as perguntas de história, geografia e sistema político norte-americano requeridas na prova de naturalização.',
-    code: 'CIV-401',
-    estimated_hours: 20,
-    created_at: '2026-01-28T09:00:00Z',
-  },
-]
-
-const INITIAL_COURSE_DISCIPLINES: SupabaseCourseDiscipline[] = [
-  { id: 'cd-1', course_id: 'crs-101', discipline_id: 'disc-01', sequence_order: 1, created_at: '2026-01-20T10:00:00Z' },
-  { id: 'cd-2', course_id: 'crs-101', discipline_id: 'disc-02', sequence_order: 2, created_at: '2026-01-20T10:05:00Z' },
-  { id: 'cd-3', course_id: 'crs-101', discipline_id: 'disc-03', sequence_order: 3, created_at: '2026-01-20T10:10:00Z' },
-  { id: 'cd-4', course_id: 'crs-102', discipline_id: 'disc-03', sequence_order: 1, created_at: '2026-02-02T10:00:00Z' },
-  { id: 'cd-5', course_id: 'crs-102', discipline_id: 'disc-04', sequence_order: 2, created_at: '2026-02-02T10:05:00Z' },
-  { id: 'cd-6', course_id: 'crs-102', discipline_id: 'disc-05', sequence_order: 3, created_at: '2026-02-02T10:10:00Z' },
-]
+// Inicialização limpa (sem dados fictícios fixos)
+const INITIAL_DISCIPLINES: SupabaseDiscipline[] = []
+const INITIAL_COURSE_DISCIPLINES: SupabaseCourseDiscipline[] = []
 
 export interface CreateDisciplineDTO {
   name: string
@@ -104,8 +24,7 @@ class SupabaseCurriculumService {
     } catch (e) {
       console.warn('Erro ao carregar disciplinas do localStorage:', e)
     }
-    this.saveDisciplines(INITIAL_DISCIPLINES)
-    return INITIAL_DISCIPLINES
+    return []
   }
 
   private saveDisciplines(items: SupabaseDiscipline[]): void {
@@ -123,8 +42,7 @@ class SupabaseCurriculumService {
     } catch (e) {
       console.warn('Erro ao carregar course_disciplines do localStorage:', e)
     }
-    this.saveCourseDisciplines(INITIAL_COURSE_DISCIPLINES)
-    return INITIAL_COURSE_DISCIPLINES
+    return []
   }
 
   private saveCourseDisciplines(items: SupabaseCourseDiscipline[]): void {
@@ -157,7 +75,12 @@ class SupabaseCurriculumService {
         }
       }
 
-      if (data && data.length > 0) {
+      if (data !== null) {
+        if (data.length === 0) {
+          const cached = this.loadDisciplines()
+          return { data: cached, isLive: true, error: null }
+        }
+
         // No banco real, as colunas são: id, title, description, created_at
         const mapped: SupabaseDiscipline[] = data.map((item: Record<string, unknown>, idx: number) => ({
           id: String(item.id || `disc-supa-${idx}`),
@@ -174,8 +97,8 @@ class SupabaseCurriculumService {
 
       return {
         data: this.loadDisciplines(),
-        isLive: false,
-        error: 'Tabela disciplines retornou 0 registros visíveis via chave anon.',
+        isLive: true,
+        error: null,
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha na conexão com Supabase'

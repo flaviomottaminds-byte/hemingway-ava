@@ -15,12 +15,14 @@ import {
   Sparkles,
   Database,
   Filter,
+  Award,
 } from 'lucide-react'
 import type { SupabaseStudent } from '../../types'
 import { studentEnrollmentService } from '../../services/studentEnrollmentService'
 import type { CreateStudentDTO } from '../../services/studentEnrollmentService'
 import { StudentFormModal } from './components/StudentFormModal'
 import { EnrollmentsManagementModal } from './components/EnrollmentsManagementModal'
+import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
 
 export const TeacherStudentsManagementView: React.FC = () => {
   const [students, setStudents] = useState<SupabaseStudent[]>([])
@@ -37,6 +39,10 @@ export const TeacherStudentsManagementView: React.FC = () => {
   const [selectedStudentForEnrollments, setSelectedStudentForEnrollments] =
     useState<SupabaseStudent | null>(null)
   const [isEnrollmentsModalOpen, setIsEnrollmentsModalOpen] = useState(false)
+
+  // Modal de Declaração de Conclusão de Curso
+  const [statementStudent, setStatementStudent] = useState<SupabaseStudent | null>(null)
+  const [isStatementOpen, setIsStatementOpen] = useState(false)
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -396,6 +402,20 @@ export const TeacherStudentsManagementView: React.FC = () => {
                             <span>Gerenciar Matrículas</span>
                           </button>
 
+                          {/* Emitir Declaração de Conclusão */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatementStudent(student)
+                              setIsStatementOpen(true)
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-[#0F1B2F] bg-[#FAF8F2] hover:bg-[#EADBBE]/50 border border-[#C59E5D]/40 rounded-xl transition-all cursor-pointer shadow-2xs"
+                            title="Emitir Declaração de Conclusão oficial para este aluno"
+                          >
+                            <Award className="w-3.5 h-3.5 text-[#C59E5D]" />
+                            <span>Declaração</span>
+                          </button>
+
                           {/* Excluir Aluno */}
                           <button
                             type="button"
@@ -450,6 +470,22 @@ export const TeacherStudentsManagementView: React.FC = () => {
           setIsEnrollmentsModalOpen(false)
           setSelectedStudentForEnrollments(null)
         }}
+        onEnrollmentChanged={fetchStudents}
+      />
+
+      {/* ================= 4. MODAL DE DECLARAÇÃO DE CONCLUSÃO ================= */}
+      <CompletionStatementModal
+        isOpen={isStatementOpen}
+        onClose={() => {
+          setIsStatementOpen(false)
+          setStatementStudent(null)
+        }}
+        studentName={statementStudent?.name || ''}
+        studentDocumentType={statementStudent?.document_type || 'Passaporte'}
+        studentDocumentNumber={
+          statementStudent?.document_number || statementStudent?.document_id || ''
+        }
+        courseTitle="Formação Geral Hemingway School"
       />
     </div>
   )

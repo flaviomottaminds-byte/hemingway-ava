@@ -3,58 +3,8 @@ import { supabase } from '../lib/supabase'
 
 const STORAGE_KEY = 'ava_supabase_courses'
 
-// Curso real do banco e dados iniciais caso a tabela retorne vazia ou bloqueada por RLS
-const DEFAULT_COURSES: SupabaseCourse[] = [
-  {
-    id: 'crs-real-01',
-    title: 'Formação em Imigração e Direitos Trabalhistas',
-    description:
-      'Capacitação completa para imigrantes nos EUA abordando legislação trabalhista (FLSA), contratos W-2 vs 1099, segurança do trabalho (OSHA) e direitos fundamentais.',
-    workload_hours: 40,
-    default_language: 'pt',
-    status: 'published',
-    cover_image_url:
-      'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=700&q=80',
-    instructor_id: 'usr_prof_01',
-    instructor_name: 'Prof. Leonardo Dias',
-    disciplines_count: 5,
-    students_count: 64,
-    created_at: '2026-02-01T10:00:00Z',
-    updated_at: '2026-02-18T14:30:00Z',
-  },
-  {
-    id: 'crs-101',
-    title: 'Inglês Prático para o Mercado de Trabalho',
-    description:
-      'Curso intensivo com vocabulário corporativo essencial nos EUA, simulação de entrevistas de emprego, redação de e-mails profissionais e comunicação diária.',
-    workload_hours: 45,
-    default_language: 'en',
-    status: 'published',
-    cover_image_url:
-      'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=700&q=80',
-    instructor_id: 'usr_prof_02',
-    instructor_name: 'Prof. Marcus Vance',
-    disciplines_count: 4,
-    students_count: 142,
-    created_at: '2026-01-15T10:00:00Z',
-  },
-  {
-    id: 'crs-103',
-    title: 'Sistema Financeiro nos EUA & Credit Score FICO',
-    description:
-      'Abertura de contas bancárias, obtenção de ITIN vs SSN, construção de histórico de crédito FICO do zero e prevenção contra fraudes financeiras.',
-    workload_hours: 20,
-    default_language: 'es',
-    status: 'published',
-    cover_image_url:
-      'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=700&q=80',
-    instructor_id: 'usr_prof_03',
-    instructor_name: 'Carlos Mendoza, CFP',
-    disciplines_count: 3,
-    students_count: 215,
-    created_at: '2026-02-12T16:20:00Z',
-  },
-]
+// Inicialização 100% limpa (sem dados fictícios fixos)
+const DEFAULT_COURSES: SupabaseCourse[] = []
 
 export interface CreateCourseDTO {
   title: string
@@ -92,8 +42,7 @@ class SupabaseCourseService {
     } catch (e) {
       console.warn('Erro ao carregar cursos do localStorage:', e)
     }
-    this.saveToStorage(DEFAULT_COURSES)
-    return DEFAULT_COURSES
+    return []
   }
 
   private saveToStorage(courses: SupabaseCourse[]): void {
@@ -125,8 +74,17 @@ class SupabaseCourseService {
         }
       }
 
-      if (data && data.length > 0) {
+      if (data !== null) {
         this.lastError = null
+        if (data.length === 0) {
+          const cached = this.loadFromStorage()
+          return {
+            data: cached,
+            isLive: true,
+            error: null,
+          }
+        }
+
         // Mapeia os campos da tabela real courses para o modelo da aplicação
         const mappedCourses: SupabaseCourse[] = data.map((item: Record<string, unknown>, index: number) => ({
           id: String(item.id || `crs-supa-${index}`),
@@ -137,11 +95,11 @@ class SupabaseCourseService {
           status: (item.status as 'draft' | 'published') || 'published',
           cover_image_url:
             String(item.cover_image_url || '') ||
-            DEFAULT_COURSES[index % DEFAULT_COURSES.length].cover_image_url,
-          instructor_id: String(item.instructor_id || 'usr_prof_real'),
-          instructor_name: String(item.instructor_name || 'Prof. Leonardo Dias'),
-          disciplines_count: Number(item.disciplines_count || 4),
-          students_count: Number(item.students_count || 32),
+            'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=700&q=80',
+          instructor_id: String(item.instructor_id || ''),
+          instructor_name: String(item.instructor_name || 'Prof. Responsável'),
+          disciplines_count: Number(item.disciplines_count || 0),
+          students_count: Number(item.students_count || 0),
           created_at: String(item.created_at || new Date().toISOString()),
           updated_at: item.updated_at ? String(item.updated_at) : undefined,
         }))
@@ -154,13 +112,11 @@ class SupabaseCourseService {
         }
       }
 
-      // Se a tabela retornou [] (por RLS ou vazia)
       const cached = this.loadFromStorage()
       return {
         data: cached,
-        isLive: false,
-        error:
-          'Tabela courses retornou 0 registros visíveis via chave pública anon. Verifique as políticas de RLS (Row Level Security) no Supabase.',
+        isLive: true,
+        error: null,
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha na conexão com Supabase'

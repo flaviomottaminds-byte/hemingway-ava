@@ -87,12 +87,16 @@ export const EnrollmentsManagementModal: React.FC<
 
     setIsEnrolling(true)
     try {
-      await studentEnrollmentService.enrollStudent(
+      const res = await studentEnrollmentService.enrollStudent(
         student.id,
         selectedCourseToEnroll,
         'active',
       )
-      showMsg('Aluno matriculado com sucesso no curso!')
+      if (res.supabaseError) {
+        showMsg(`Aviso do Supabase: ${res.supabaseError}. Salvo na sessão para teste.`)
+      } else {
+        showMsg('Aluno matriculado com sucesso no Supabase!')
+      }
       await loadData()
       onEnrollmentChanged?.()
     } catch (err: any) {
