@@ -32,6 +32,8 @@ interface SidebarProps {
   onClose: () => void
   onLogout: () => void
   currentRole: 'student' | 'teacher' | 'admin'
+  onOpenSettings?: () => void
+  onOpenSupport?: () => void
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,6 +43,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   onLogout,
   currentRole = 'student',
+  onOpenSettings,
+  onOpenSupport,
 }) => {
   const { t } = useTranslation()
 
@@ -397,10 +401,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <nav className="space-y-1">
                 {secondaryNavItems.map((item) => {
                   const Icon = item.icon
+                  const handleClick = () => {
+                    if (item.id === 'settings' && onOpenSettings) {
+                      onOpenSettings()
+                      onClose()
+                    } else if (item.id === 'helpDesk' && onOpenSupport) {
+                      onOpenSupport()
+                      onClose()
+                    }
+                  }
+
                   return (
                     <button
                       key={item.id}
                       type="button"
+                      onClick={handleClick}
                       className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-[#FAF8F2]/70 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/60 transition-colors cursor-pointer"
                     >
                       <Icon className="w-5 h-5 text-[#C59E5D]/80" />

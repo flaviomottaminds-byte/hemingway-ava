@@ -194,6 +194,7 @@ export interface UserProfile {
   completedHours: number
   activeCoursesCount: number
   certificatesEarned: number
+  engagementPoints?: number
   document_type?: string
   document_number?: string
 }

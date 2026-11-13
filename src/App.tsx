@@ -14,6 +14,8 @@ import { TeacherAnalyticsView } from './features/teacher/TeacherAnalyticsView'
 import { TeacherStudentsManagementView } from './features/teacher/TeacherStudentsManagementView'
 import { TeacherTeamManagementView } from './features/teacher/TeacherTeamManagementView'
 import { DevNavigationWidget } from './components/dev/DevNavigationWidget'
+import { AccountSettingsModal } from './components/modals/AccountSettingsModal'
+import { SupportModal } from './components/modals/SupportModal'
 import { mockUser, mockTeacherUser, mockAdminUser, mockCourses, mockLesson } from './services/mockData'
 import type { ActiveView, UserProfile } from './types'
 import { supabase } from './lib/supabase'
@@ -27,6 +29,8 @@ export function App() {
   // Roteamento e visualização ativa
   const [activeView, setActiveView] = useState<ActiveView>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false)
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState<boolean>(false)
   const [isResetPasswordView, setIsResetPasswordView] = useState<boolean>(() => {
     return (
       window.location.pathname.includes('/reset-password') ||
@@ -166,16 +170,17 @@ export function App() {
       ),
       email: authEmail,
       role: finalRole,
-      originCountry: 'Brasil',
-      currentCity: 'Orlando, FL',
+      originCountry: String(profileData?.origin_country || 'Brasil'),
+      currentCity: String(profileData?.current_city || profileData?.city || ''),
       avatarUrl:
         String(profileData?.avatar_url || meta.avatar_url || meta.picture || '') ||
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-      preferredLanguage: 'pt',
+      preferredLanguage: (profileData?.preferred_language as 'pt' | 'en' | 'es') || 'pt',
       weeklyGoalHours: 10,
       completedHours: 0,
-      activeCoursesCount: 1,
+      activeCoursesCount: 0,
       certificatesEarned: 0,
+      engagementPoints: Number(profileData?.engagement_points || 0),
       document_type: String(profileData?.document_type || 'Passaporte Internacional'),
       document_number: String(profileData?.document_number || ''),
     }
@@ -294,6 +299,12 @@ export function App() {
     setActiveView('dashboard')
   }
 
+  // Atualização do Perfil do Usuário
+  const handleUpdateUserProfile = (updatedUser: UserProfile) => {
+    setCurrentUser(updatedUser)
+    localStorage.setItem('hemingway_auth_profile', JSON.stringify(updatedUser))
+  }
+
   // Ferramenta de Teste: Alternar Perfil (Simulação)
   // DISPONÍVEL EXCLUSIVAMENTE EM DESENVOLVIMENTO
   const handleToggleRole = () => {
@@ -382,6 +393,8 @@ export function App() {
           onClose={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
           currentRole={currentRole}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onOpenSupport={() => setIsSupportModalOpen(true)}
         />
 
         {/* Área de Conteúdo Principal */}
@@ -483,6 +496,21 @@ export function App() {
           onLogout={handleLogout}
         />
       )}
+
+      {/* Modal de Configurações da Conta */}
+      <AccountSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        user={currentUser}
+        onUpdateUser={handleUpdateUserProfile}
+      />
+
+      {/* Modal de Suporte Multilíngue */}
+      <SupportModal
+        isOpen={isSupportModalOpen}
+        onClose={() => setIsSupportModalOpen(false)}
+        user={currentUser}
+      />
     </div>
   )
 }

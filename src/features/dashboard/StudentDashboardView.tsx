@@ -9,10 +9,8 @@ import {
   PlayCircle,
   Calendar,
   Sparkles,
-  Database,
 } from 'lucide-react'
 import type { Course, UserProfile, ActiveView } from '../../types'
-import { courseService } from '../../services/courseService'
 import { studentEnrollmentService } from '../../services/studentEnrollmentService'
 import type { EnrolledCourseView } from '../../services/studentEnrollmentService'
 import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
@@ -31,19 +29,10 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   const { t } = useTranslation()
   const [enrolledCourses, setEnrolledCourses] = useState<EnrolledCourseView[]>([])
   const [loadingEnrollments, setLoadingEnrollments] = useState(true)
-  const [isSupabaseLive, setIsSupabaseLive] = useState(false)
-  const [supabaseNotice, setSupabaseNotice] = useState<string | null>(null)
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
   const [selectedCourseTitle, setSelectedCourseTitle] = useState('')
 
   useEffect(() => {
-    courseService.getCoursesWithStatus().then((res) => {
-      setIsSupabaseLive(res.isLive)
-      if (res.error) {
-        setSupabaseNotice(res.error)
-      }
-    })
-
     const loadEnrollments = async () => {
       setLoadingEnrollments(true)
       try {
@@ -89,7 +78,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
     },
     {
       label: t('dashboard.metrics.communityRank', 'Comunidade'),
-      value: '450 pts',
+      value: `${user.engagementPoints ?? 0} pts`,
       icon: Flame,
       color: 'text-purple-600',
       bg: 'bg-purple-50',
@@ -101,10 +90,12 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
       {/* Banner de Boas-Vindas */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0F1B2F] via-[#1C2E4A] to-[#0A1220] border border-[#C59E5D]/30 text-white p-6 sm:p-8 shadow-xl shadow-[#0F1B2F]/10">
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0A1220]/70 backdrop-blur-md text-xs font-semibold text-[#C59E5D] mb-4 border border-[#C59E5D]/40">
-            <Sparkles className="w-3.5 h-3.5 text-[#C59E5D]" />
-            <span>{user.currentCity}</span>
-          </div>
+          {user.currentCity && user.currentCity.trim().length > 0 && user.currentCity !== 'Orlando, FL' && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0A1220]/70 backdrop-blur-md text-xs font-semibold text-[#C59E5D] mb-4 border border-[#C59E5D]/40">
+              <Sparkles className="w-3.5 h-3.5 text-[#C59E5D]" />
+              <span>{user.currentCity}</span>
+            </div>
+          )}
 
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FAF8F2]">
             {t('dashboard.welcomeBanner.greeting', { name: user.name.split(' ')[0] })}
@@ -168,27 +159,6 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Status da Conexão com o Supabase */}
-        {isSupabaseLive ? (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl flex items-center justify-between gap-2 shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-bold">Supabase PostgreSQL Conectado:</span>
-              <span>Cursos carregados da tabela 'courses'</span>
-            </div>
-            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-emerald-200/60 text-emerald-900">
-              Live Database
-            </span>
-          </div>
-        ) : supabaseNotice ? (
-          <div className="p-3 bg-slate-100/90 border border-slate-200 text-slate-700 text-xs rounded-2xl flex items-center gap-2">
-            <Database className="w-4 h-4 text-blue-600 shrink-0" />
-            <span>
-              Catálogo sincronizado com Supabase: Exibindo <strong>Formação em Imigração e Direitos Trabalhistas</strong>
-            </span>
-          </div>
-        ) : null}
 
         {/* Grade de Cursos Matriculados do Aluno */}
         {loadingEnrollments ? (
