@@ -28,7 +28,13 @@ interface LessonViewProps {
 export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDashboard }) => {
   const { t, i18n } = useTranslation()
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLanguageCode) || 'pt'
-  const [activeTab, setActiveTab] = useState<'transcription' | 'overview' | 'resources' | 'useful_links' | 'notes'>('transcription')
+  const initialHasPdf = Boolean(
+    lesson.pdf_url ||
+      lesson.materials?.some((m) => m.type === 'pdf' && m.url && m.url !== '#'),
+  )
+  const [activeTab, setActiveTab] = useState<
+    'transcription' | 'overview' | 'resources' | 'useful_links' | 'notes'
+  >(initialHasPdf ? 'overview' : 'transcription')
   const [isCompleted, setIsCompleted] = useState(lesson.isCompleted)
   const [userNote, setUserNote] = useState('')
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
@@ -99,6 +105,14 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
       : lesson.useful_links && Array.isArray(lesson.useful_links)
         ? lesson.useful_links
         : []
+
+  // Prioridade absoluta para o PDF diagramado: quando houver PDF anexado,
+  // oculta completamente o bloco de texto corrido / transcrição gerada para evitar duplicidade.
+  useEffect(() => {
+    if (pdfUrl && activeTab === 'transcription') {
+      setActiveTab(usefulLinks.length > 0 ? 'useful_links' : 'overview')
+    }
+  }, [pdfUrl, usefulLinks.length, activeTab])
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -321,17 +335,20 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
       {/* Abas de Conteúdo Pedagógico */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="flex border-b border-slate-200 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('transcription')}
-            className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-              activeTab === 'transcription'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {t('classroom.tabs.transcription')}
-          </button>
+          {/* Aba de Transcrição / Conteúdo da Aula (Exibida APENAS quando NÃO houver PDF anexado para evitar duplicidade) */}
+          {!pdfUrl && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('transcription')}
+              className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'transcription'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50/40'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t('classroom.tabs.transcription')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
@@ -385,8 +402,8 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </div>
 
         <div className="p-6">
-          {/* Aba de Transcrição / Conteúdo da Aula */}
-          {activeTab === 'transcription' && (
+          {/* Aba de Transcrição / Conteúdo da Aula (Exibida APENAS quando NÃO houver PDF anexado) */}
+          {!pdfUrl && activeTab === 'transcription' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
