@@ -78,7 +78,9 @@
     "upcomingLive": {
       "title": "Upcoming Live Q&A Sessions",
       "join": "Join Room"
-    }
+    },
+    "issueStatement": "Issue Completion Statement",
+    "completedCourseBadge": "Course 100% Completed"
   },
   "classroom": {
     "title": "Lesson View",
@@ -88,6 +90,8 @@
     "duration": "24 minutes",
     "markCompleted": "Mark as Completed",
     "completedBadge": "Lesson Completed",
+    "finishCourseAndIssue": "Complete Course & Issue Statement",
+    "issueStatement": "Issue Completion Statement",
     "tabs": {
       "overview": "Overview",
       "transcription": "Transcript & Translation",

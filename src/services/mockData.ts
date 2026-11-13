@@ -13,6 +13,8 @@ export const mockUser: UserProfile = {
   completedHours: 14.5,
   activeCoursesCount: 4,
   certificatesEarned: 2,
+  document_type: 'Passaporte Internacional',
+  document_number: 'USA-8839201',
 }
 
 export const mockTeacherUser: UserProfile = {
@@ -59,14 +61,14 @@ export const mockCourses: Course[] = [
       es: 'Vocabulario esencial, entrevistas de trabajo, redacción de correos y rutina laboral en EE. UU.',
     },
     category: 'language',
-    progressPercentage: 68,
+    progressPercentage: 100,
     totalLessons: 18,
-    completedLessons: 12,
+    completedLessons: 18,
     thumbnail: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80',
     badgeText: {
-      pt: 'Mais Popular',
-      en: 'Most Popular',
-      es: 'Más Popular',
+      pt: 'Curso Concluído',
+      en: 'Course Completed',
+      es: 'Curso Completado',
     },
   },
   {

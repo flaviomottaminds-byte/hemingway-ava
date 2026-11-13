@@ -14,6 +14,7 @@ import {
 import type { Course, UserProfile, ActiveView, SupabaseCourse } from '../../types'
 import type { SupportedLanguageCode } from '../../locales/i18n'
 import { courseService } from '../../services/courseService'
+import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
 
 interface StudentDashboardViewProps {
   user: UserProfile
@@ -32,6 +33,8 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   const [supabaseCourses, setSupabaseCourses] = useState<SupabaseCourse[]>([])
   const [isSupabaseLive, setIsSupabaseLive] = useState(false)
   const [supabaseNotice, setSupabaseNotice] = useState<string | null>(null)
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
+  const [selectedCourseTitle, setSelectedCourseTitle] = useState('')
 
   useEffect(() => {
     courseService.getCoursesWithStatus().then((res) => {
@@ -244,19 +247,33 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
 
                     <div className="w-full bg-slate-100 rounded-full h-2 mb-4 overflow-hidden">
                       <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        className={`${course.progressPercentage >= 100 ? 'bg-[#C59E5D]' : 'bg-blue-600'} h-2 rounded-full transition-all duration-300`}
                         style={{ width: `${course.progressPercentage}%` }}
                       />
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={onOpenClassroom}
-                      className="w-full py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-semibold border border-slate-200 hover:border-blue-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <PlayCircle className="w-4 h-4" />
-                      <span>{t('dashboard.welcomeBanner.cta')}</span>
-                    </button>
+                    {course.progressPercentage >= 100 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCourseTitle(courseTitle)
+                          setIsStatementModalOpen(true)
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs font-bold shadow-md shadow-[#C59E5D]/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <Award className="w-4 h-4 text-[#0F1B2F]" />
+                        <span>{t('dashboard.issueStatement')}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onOpenClassroom}
+                        className="w-full py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-semibold border border-slate-200 hover:border-blue-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <PlayCircle className="w-4 h-4" />
+                        <span>{t('dashboard.welcomeBanner.cta')}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -313,6 +330,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Modal de Declaração de Conclusão */}
+      <CompletionStatementModal
+        isOpen={isStatementModalOpen}
+        onClose={() => setIsStatementModalOpen(false)}
+        studentName={user.name}
+        studentDocumentType={user.document_type || 'Passaporte Internacional'}
+        studentDocumentNumber={user.document_number || 'USA-8839201'}
+        courseTitle={selectedCourseTitle || 'Inglês Prático para o Mercado de Trabalho nos EUA'}
+      />
     </div>
   )
 }

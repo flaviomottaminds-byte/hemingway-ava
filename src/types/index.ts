@@ -184,6 +184,8 @@ export interface UserProfile {
   completedHours: number
   activeCoursesCount: number
   certificatesEarned: number
+  document_type?: string
+  document_number?: string
 }
 
 export interface LessonMaterial {

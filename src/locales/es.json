@@ -78,7 +78,9 @@
     "upcomingLive": {
       "title": "Próximas Sesiones de Dudas en Vivo",
       "join": "Entrar a la Sala"
-    }
+    },
+    "issueStatement": "Emitir Declaración de Finalización",
+    "completedCourseBadge": "Curso 100% Completado"
   },
   "classroom": {
     "title": "Visualización de Lección",
@@ -88,6 +90,8 @@
     "duration": "24 minutos",
     "markCompleted": "Marcar como Completada",
     "completedBadge": "Lección Completada",
+    "finishCourseAndIssue": "Concluir Curso y Emitir Declaración",
+    "issueStatement": "Emitir Declaración de Finalización",
     "tabs": {
       "overview": "Visión General",
       "transcription": "Transcripción y Traducción",

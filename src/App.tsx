@@ -148,6 +148,7 @@ export function App() {
           {activeView === 'classroom' && (
             <LessonView
               lesson={mockLesson}
+              user={currentUser}
               onBackToDashboard={() => setActiveView('dashboard')}
             />
           )}

@@ -9,22 +9,26 @@ import {
   Subtitles,
   Database,
   ExternalLink,
+  Award,
 } from 'lucide-react'
-import type { Lesson, SupabaseLesson } from '../../types'
+import type { Lesson, SupabaseLesson, UserProfile } from '../../types'
 import type { SupportedLanguageCode } from '../../locales/i18n'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
+import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
 
 interface LessonViewProps {
   lesson: Lesson
+  user?: UserProfile
   onBackToDashboard: () => void
 }
 
-export const LessonView: React.FC<LessonViewProps> = ({ lesson, onBackToDashboard }) => {
+export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDashboard }) => {
   const { t, i18n } = useTranslation()
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLanguageCode) || 'pt'
   const [activeTab, setActiveTab] = useState<'transcription' | 'overview' | 'resources' | 'notes'>('transcription')
   const [isCompleted, setIsCompleted] = useState(lesson.isCompleted)
   const [userNote, setUserNote] = useState('')
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
 
   // Estado da aula real do Supabase
   const [supabaseLesson, setSupabaseLesson] = useState<SupabaseLesson | null>(null)
@@ -76,21 +80,33 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, onBackToDashboar
           <span>{t('common.back')}</span>
         </button>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={() => setIsCompleted(!isCompleted)}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               isCompleted
                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-xs'
-                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20'
+                : 'bg-[#0F1B2F] hover:bg-[#1C2E4A] text-white shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]/40'
             }`}
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>
               {isCompleted ? t('classroom.completedBadge') : t('classroom.markCompleted')}
             </span>
           </button>
+
+          {/* Gatilho de Conclusão: Botão em Dourado (#C59E5D) com texto Azul Marinho (#0F1B2F) */}
+          {isCompleted && (
+            <button
+              type="button"
+              onClick={() => setIsStatementModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs font-bold shadow-md shadow-[#C59E5D]/30 transition-all cursor-pointer animate-in fade-in"
+            >
+              <Award className="w-4 h-4 text-[#0F1B2F]" />
+              <span>{t('classroom.issueStatement')}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -300,6 +316,45 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, onBackToDashboar
           )}
         </div>
       </div>
+
+      {/* Banner de Conclusão de Estudos com Botão de Destaque */}
+      {isCompleted && (
+        <div className="p-6 rounded-3xl bg-gradient-to-r from-[#0F1B2F] via-[#1C2E4A] to-[#0A1220] border border-[#C59E5D]/40 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-5 animate-in slide-in-from-bottom-2">
+          <div className="space-y-1.5 text-center sm:text-left">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C59E5D]/20 text-[#C59E5D] text-xs font-bold border border-[#C59E5D]/30">
+              <Award className="w-3.5 h-3.5" />
+              <span>{t('classroom.completedBadge')}</span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-bold text-[#FAF8F2]">
+              Parabéns! Você completou os requisitos desta disciplina.
+            </h3>
+            <p className="text-xs sm:text-sm text-[#EADBBE]/90 max-w-xl">
+              Sua Declaração Oficial de Conclusão da Hemingway School está pronta para emissão imediata, com validade profissional e acadêmica nos EUA.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsStatementModalOpen(true)}
+            className="px-6 py-3 rounded-2xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold shadow-lg shadow-[#C59E5D]/30 transition-all flex items-center gap-2 shrink-0 cursor-pointer transform active:scale-95"
+          >
+            <Award className="w-4 h-4 text-[#0F1B2F]" />
+            <span>{t('classroom.finishCourseAndIssue')}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Modal Formal de Declaração de Conclusão (Suporte A4 / Impressão / PDF) */}
+      <CompletionStatementModal
+        isOpen={isStatementModalOpen}
+        onClose={() => setIsStatementModalOpen(false)}
+        studentName={user?.name || 'Mateo Silva Santos'}
+        studentDocumentType={user?.document_type || 'Passaporte Internacional'}
+        studentDocumentNumber={user?.document_number || 'USA-8839201'}
+        courseTitle={currentTitle}
+        completionDate={new Date().toISOString()}
+        enrollmentId="HEM-2026-MAT-8849"
+      />
     </div>
   )
 }
