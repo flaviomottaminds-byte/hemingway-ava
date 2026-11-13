@@ -394,9 +394,9 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Toast Feedback */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-slate-700 animate-in slide-in-from-top-4 duration-200">
-          <Database className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-medium">{toastMessage}</span>
+        <div className="fixed top-20 right-6 z-50 bg-[#0F1B2F] text-[#FAF8F2] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-[#C59E5D] animate-in slide-in-from-top-4 duration-200">
+          <Database className="w-4 h-4 text-[#C59E5D]" />
+          <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
       )}
 
@@ -433,11 +433,11 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
               type="button"
               onClick={handleSaveAssessment}
               disabled={isSubmitting}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="px-6 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-3.5 h-3.5 border-2 border-[#0F1B2F]/30 border-t-[#0F1B2F] rounded-full animate-spin" />
                   <span>Salvando no Supabase...</span>
                 </>
               ) : (
@@ -709,7 +709,7 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
             <button
               type="button"
               onClick={handleAddNewQuestion}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md shadow-blue-500/25 transition-all transform active:scale-[0.98] cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition-all transform active:scale-[0.98] cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Adicionar Nova Questão</span>

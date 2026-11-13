@@ -37,29 +37,29 @@ export const Topbar: React.FC<TopbarProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  let ringColor = 'ring-blue-500/30'
-  let roleBadgeClass = 'bg-blue-100 text-blue-700'
+  let ringColor = 'ring-[#C59E5D]/60'
+  let roleBadgeClass = 'bg-[#C59E5D]/20 text-[#C59E5D] border border-[#C59E5D]/40'
   let roleText = 'Aluno'
 
   if (currentRole === 'admin') {
-    ringColor = 'ring-red-500/40'
-    roleBadgeClass = 'bg-red-100 text-red-700'
+    ringColor = 'ring-red-400/60'
+    roleBadgeClass = 'bg-red-950/80 text-red-300 border border-red-500/40'
     roleText = 'Administrador'
   } else if (currentRole === 'teacher') {
-    ringColor = 'ring-indigo-500/40'
-    roleBadgeClass = 'bg-indigo-100 text-indigo-700'
+    ringColor = 'ring-[#C59E5D]'
+    roleBadgeClass = 'bg-[#C59E5D] text-[#0F1B2F] font-extrabold'
     roleText = 'Professor'
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 py-2.5 transition-colors">
+    <header className="sticky top-0 z-40 bg-[#0F1B2F] border-b border-[#1C2E4A] px-4 sm:px-6 py-2.5 transition-colors shadow-md">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Esquerda: Botão Menu Mobile + Identidade Visual */}
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="lg:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+            className="lg:hidden p-2 rounded-lg text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A] focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 cursor-pointer"
             aria-label="Toggle Navigation"
           >
             <Menu className="w-5 h-5" />
@@ -68,23 +68,23 @@ export const Topbar: React.FC<TopbarProps> = ({
           <button
             type="button"
             onClick={onNavigateHome}
-            className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
+            className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
           >
-            <div className="h-10 rounded-xl overflow-hidden bg-[#f7f5ed] border border-slate-200/80 shadow-xs flex items-center px-1 group-hover:scale-105 transition-transform shrink-0">
+            <div className="h-11 sm:h-12 flex items-center justify-center px-1.5 rounded-xl bg-white border border-[#C59E5D]/50 shadow-sm group-hover:scale-105 transition-transform shrink-0">
               <img
                 src="/logo-hemingway.png"
                 alt="Hemingway School Logo"
-                className="h-9 w-auto object-contain"
+                className="h-9 sm:h-10 w-auto object-contain"
               />
             </div>
             <div>
-              <span className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
-                Hemingway <span className="text-[#0d1b2a]">School</span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">
+              <span className="text-lg font-bold text-[#FAF8F2] tracking-tight flex items-center gap-1.5">
+                Hemingway <span className="text-[#C59E5D]">School</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-[#C59E5D] text-[#0F1B2F] border border-[#C59E5D]">
                   AVA
                 </span>
               </span>
-              <p className="text-[11px] text-slate-500 hidden sm:block leading-none">
+              <p className="text-[11px] text-[#EADBBE]/80 hidden sm:block leading-none">
                 {t('common.tagline', 'Ambiente Virtual de Aprendizagem')}
               </p>
             </div>
@@ -93,41 +93,41 @@ export const Topbar: React.FC<TopbarProps> = ({
 
         {/* Centro-Esquerda: Barra de Navegação Rápida Global */}
         {onSelectView && (
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/60 shadow-xs">
+          <nav className="hidden md:flex items-center gap-1 bg-[#0A1220]/80 p-1 rounded-xl border border-[#1C2E4A] shadow-xs">
             <button
               type="button"
               onClick={() => onSelectView('dashboard')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                 activeView === 'dashboard'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
+                  : 'text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/60'
               }`}
             >
-              <LayoutDashboard className="w-3.5 h-3.5 text-blue-600" />
+              <LayoutDashboard className="w-3.5 h-3.5" />
               <span>Painel de Cursos</span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectView('classroom')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                 activeView === 'classroom'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
+                  : 'text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/60'
               }`}
             >
-              <Video className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Sala de Aula Virtual</span>
+              <Video className="w-3.5 h-3.5" />
+              <span>Sala de Aula</span>
             </button>
 
             {currentRole === 'teacher' && (
               <button
                 type="button"
                 onClick={() => onSelectView('teacher-courses')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                   activeView?.startsWith('teacher')
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-indigo-700 hover:bg-indigo-50'
+                    ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
+                    : 'text-[#C59E5D] hover:bg-[#1C2E4A]/80'
                 }`}
               >
                 <GraduationCap className="w-3.5 h-3.5" />
@@ -139,10 +139,10 @@ export const Topbar: React.FC<TopbarProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectView('teacher-courses')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                   activeView?.startsWith('teacher')
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-red-700 hover:bg-red-50'
+                    ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
+                    : 'text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/80'
                 }`}
               >
                 <ShieldAlert className="w-3.5 h-3.5" />
@@ -156,12 +156,12 @@ export const Topbar: React.FC<TopbarProps> = ({
         <div className="hidden xl:flex flex-1 max-w-xs mx-2">
           <div className="relative w-full">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
+              <Search className="h-4 w-4 text-[#C59E5D]" />
             </div>
             <input
               type="text"
               placeholder={t('common.search', 'Buscar cursos, aulas, materiais...')}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#1C2E4A]/60 border border-[#1C2E4A] rounded-xl text-[#FAF8F2] placeholder-[#EADBBE]/50 focus:bg-[#0A1220] focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D] transition-all"
             />
           </div>
         </div>
@@ -175,21 +175,21 @@ export const Topbar: React.FC<TopbarProps> = ({
           <button
             type="button"
             aria-label={t('common.notifications', 'Notificações')}
-            className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            className="relative p-2 text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A] rounded-lg transition-colors cursor-pointer"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full ring-2 ring-white"></span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#C59E5D] rounded-full ring-2 ring-[#0F1B2F]"></span>
           </button>
 
           {/* Avatar e Perfil Resumido */}
-          <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+          <div className="flex items-center gap-2.5 pl-2 border-l border-[#1C2E4A]">
             <img
               src={user.avatarUrl}
               alt={user.name}
               className={`w-9 h-9 rounded-full object-cover ring-2 ${ringColor}`}
             />
             <div className="hidden lg:block text-left leading-tight">
-              <span className="block text-xs font-semibold text-slate-800">
+              <span className="block text-xs font-bold text-[#FAF8F2]">
                 {user.name.split(' ')[0]} {user.name.split(' ')[1]?.[0]}.
               </span>
               <div className="flex items-center gap-1 mt-0.5">
@@ -204,10 +204,10 @@ export const Topbar: React.FC<TopbarProps> = ({
               <button
                 type="button"
                 onClick={onToggleRole}
-                className="hidden sm:flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 transition cursor-pointer"
+                className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-[#C59E5D] hover:text-[#0F1B2F] hover:bg-[#C59E5D] bg-[#1C2E4A]/80 px-2 py-1 rounded-lg border border-[#C59E5D]/40 transition cursor-pointer"
                 title="Ciclar Perfil: Aluno → Professor → Admin"
               >
-                <Sparkles className="w-3 h-3 text-indigo-500" />
+                <Sparkles className="w-3 h-3" />
                 <span>Ciclar</span>
               </button>
             )}
@@ -216,7 +216,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             <button
               type="button"
               onClick={onLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+              className="p-1.5 text-[#FAF8F2]/60 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
               title="Sair da Plataforma"
             >
               <LogOut className="w-4 h-4" />

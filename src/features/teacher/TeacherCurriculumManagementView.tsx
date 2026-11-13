@@ -181,7 +181,7 @@ export const TeacherCurriculumManagementView: React.FC<
               setSelectedDisciplineForEdit(null)
               setIsFormModalOpen(true)
             }}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all transform active:scale-[0.98] cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold shadow-lg shadow-[#C59E5D]/25 transition-all transform active:scale-[0.98] cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Nova Disciplina</span>

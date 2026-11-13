@@ -77,17 +77,17 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       {/* Banner de Boas-Vindas */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 text-white p-6 sm:p-8 shadow-xl shadow-blue-900/10">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0F1B2F] via-[#1C2E4A] to-[#0A1220] border border-[#C59E5D]/30 text-white p-6 sm:p-8 shadow-xl shadow-[#0F1B2F]/10">
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-medium text-blue-200 mb-4 border border-white/10">
-            <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0A1220]/70 backdrop-blur-md text-xs font-semibold text-[#C59E5D] mb-4 border border-[#C59E5D]/40">
+            <Sparkles className="w-3.5 h-3.5 text-[#C59E5D]" />
             <span>{user.currentCity}</span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FAF8F2]">
             {t('dashboard.welcomeBanner.greeting', { name: user.name.split(' ')[0] })}
           </h1>
-          <p className="mt-2 text-sm sm:text-base text-blue-100/90 leading-relaxed max-w-xl">
+          <p className="mt-2 text-sm sm:text-base text-[#EADBBE]/90 leading-relaxed max-w-xl">
             {t('dashboard.welcomeBanner.message')}
           </p>
 
@@ -95,15 +95,15 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
             <button
               type="button"
               onClick={onOpenClassroom}
-              className="inline-flex items-center gap-2.5 px-5 py-3 rounded-xl bg-white text-blue-800 font-semibold text-sm shadow-md hover:bg-blue-50 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2.5 px-5 py-3 rounded-xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] font-bold text-sm shadow-md shadow-[#C59E5D]/30 transition-all cursor-pointer"
             >
-              <PlayCircle className="w-5 h-5 text-blue-700" />
+              <PlayCircle className="w-5 h-5 text-[#0F1B2F]" />
               <span>{t('dashboard.welcomeBanner.cta')}</span>
             </button>
           </div>
         </div>
 
-        <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-[#C59E5D]/15 blur-3xl pointer-events-none" />
       </section>
 
       {/* Grid de Métricas */}

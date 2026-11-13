@@ -351,7 +351,7 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
           <button
             type="button"
             onClick={handleOpenCreateModal}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all transform active:scale-[0.98] cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-sm font-bold shadow-lg shadow-[#C59E5D]/25 transition-all transform active:scale-[0.98] cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Criar Novo Curso</span>
@@ -469,7 +469,7 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
           <button
             type="button"
             onClick={handleOpenCreateModal}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 cursor-pointer"
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             Cadastrar Novo Curso

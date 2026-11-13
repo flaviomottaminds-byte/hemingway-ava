@@ -1,7 +1,59 @@
 @import "tailwindcss";
 
+@theme {
+  --color-hemingway-navy: #0F1B2F;
+  --color-hemingway-navy-dark: #0A1220;
+  --color-hemingway-navy-light: #1C2E4A;
+  --color-hemingway-gold: #C59E5D;
+  --color-hemingway-gold-hover: #B38C4B;
+  --color-hemingway-gold-light: #EADBBE;
+  --color-hemingway-gold-subtle: #F6EFE2;
+  --color-hemingway-cream: #FAF8F2;
+  --color-hemingway-cream-dark: #F2EDE2;
+  --color-hemingway-text: #1C2E4A;
+}
+
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-800 antialiased selection:bg-blue-600 selection:text-white;
+    background-color: #FAF8F2;
+    color: #1C2E4A;
+    @apply antialiased selection:bg-[#C59E5D] selection:text-[#0F1B2F];
   }
+}
+
+/* Hemingway School Custom Theme Utilities */
+.btn-hemingway-gold {
+  background-color: #C59E5D;
+  color: #0F1B2F;
+  font-weight: 700;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 12px rgba(197, 158, 93, 0.25);
+}
+.btn-hemingway-gold:hover {
+  background-color: #B38C4B;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(197, 158, 93, 0.35);
+}
+
+.btn-hemingway-navy {
+  background-color: #0F1B2F;
+  color: #FAF8F2;
+  font-weight: 700;
+  border: 1px solid #C59E5D;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 12px rgba(15, 27, 47, 0.25);
+}
+.btn-hemingway-navy:hover {
+  background-color: #C59E5D;
+  color: #0F1B2F;
+  border-color: #0F1B2F;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(197, 158, 93, 0.3);
+}
+
+.toast-hemingway {
+  background-color: #0F1B2F;
+  color: #FAF8F2;
+  border: 1px solid #C59E5D;
+  box-shadow: 0 10px 25px -5px rgba(15, 27, 47, 0.4);
 }

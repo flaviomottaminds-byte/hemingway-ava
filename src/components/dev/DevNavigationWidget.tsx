@@ -40,19 +40,19 @@ export const DevNavigationWidget: React.FC<DevNavigationWidgetProps> = ({
   // Determina rótulos, cores e próximo estado do ciclo
   let roleLabel = 'Aluno'
   let nextRoleLabel = 'Professor'
-  let roleBadgeClass = 'bg-blue-500/30 text-blue-300 border-blue-500/40'
-  let buttonBg = 'bg-blue-600 hover:bg-blue-500 text-white'
+  let roleBadgeClass = 'bg-[#C59E5D]/20 text-[#C59E5D] border border-[#C59E5D]/40'
+  let buttonBg = 'bg-[#0F1B2F] hover:bg-[#1C2E4A] text-white border border-[#C59E5D]/50 shadow-md shadow-[#0F1B2F]/30'
 
   if (currentRole === 'teacher') {
     roleLabel = 'Professor'
     nextRoleLabel = 'Admin'
-    roleBadgeClass = 'bg-indigo-500/30 text-indigo-300 border-indigo-500/40'
-    buttonBg = 'bg-indigo-600 hover:bg-indigo-500 text-white'
+    roleBadgeClass = 'bg-[#C59E5D] text-[#0F1B2F] font-bold border border-[#C59E5D]'
+    buttonBg = 'bg-[#0F1B2F] hover:bg-[#1C2E4A] text-white border border-[#C59E5D] shadow-md shadow-[#0F1B2F]/30'
   } else if (currentRole === 'admin') {
     roleLabel = 'Admin'
     nextRoleLabel = 'Aluno'
-    roleBadgeClass = 'bg-red-500/30 text-red-300 border-red-500/40'
-    buttonBg = 'bg-red-600 hover:bg-red-500 text-white'
+    roleBadgeClass = 'bg-red-950/80 text-red-300 border border-red-500/40'
+    buttonBg = 'bg-[#0F1B2F] hover:bg-[#1C2E4A] text-white border border-red-500/60 shadow-md shadow-[#0F1B2F]/30'
   }
 
   return (

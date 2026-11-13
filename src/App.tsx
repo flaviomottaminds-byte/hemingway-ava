@@ -107,7 +107,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-800">
+    <div className="min-h-screen bg-[#FAF8F2] flex flex-col font-sans antialiased text-[#1C2E4A]">
       {/* Barra Superior com seletor de idiomas i18n e navegação rápida */}
       <Topbar
         user={currentUser}

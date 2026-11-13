@@ -276,7 +276,7 @@ export const TeacherTeamManagementView: React.FC = () => {
           </button>
           <button
             onClick={handleOpenCreateModal}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition flex items-center gap-2"
+            className="px-4 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition flex items-center gap-2 cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>+ Novo Membro</span>
