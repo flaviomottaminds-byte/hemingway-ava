@@ -122,6 +122,13 @@ export interface LessonAttachment {
   url?: string
 }
 
+export interface UsefulLink {
+  id?: string
+  title: string
+  url: string
+  description?: string
+}
+
 export interface SupabaseLesson {
   id: string
   course_id: string
@@ -135,6 +142,7 @@ export interface SupabaseLesson {
   materials: LessonAttachment[]
   pdf_url?: string
   pdf_name?: string
+  useful_links?: UsefulLink[]
   created_at: string
   updated_at?: string
 }
@@ -214,6 +222,7 @@ export interface Lesson {
   materials: LessonMaterial[]
   pdf_url?: string
   pdf_name?: string
+  useful_links?: UsefulLink[]
 }
 
 export interface Course {

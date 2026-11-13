@@ -15,8 +15,10 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle2,
+  Link2,
+  Plus,
 } from 'lucide-react'
-import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline } from '../../../types'
+import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline, UsefulLink } from '../../../types'
 import { lessonService, extractYouTubeId } from '../../../services/lessonService'
 import { courseService } from '../../../services/courseService'
 import { curriculumService } from '../../../services/curriculumService'
@@ -49,6 +51,9 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   const [durationMinutes, setDurationMinutes] = useState<number>(20)
   const [videoUrl, setVideoUrl] = useState('')
   const [contentText, setContentText] = useState('')
+
+  // Links Úteis da Aula
+  const [usefulLinks, setUsefulLinks] = useState<UsefulLink[]>([])
 
   // Gestão de PDF
   const [pdfUrl, setPdfUrl] = useState<string>('')
@@ -87,6 +92,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setContentText(lesson.content_text || '')
       setPdfUrl(lesson.pdf_url || '')
       setPdfName(lesson.pdf_name || '')
+      setUsefulLinks(
+        lesson.useful_links && Array.isArray(lesson.useful_links)
+          ? JSON.parse(JSON.stringify(lesson.useful_links))
+          : [],
+      )
       setErrorMessage(null)
       setSuccessMessage(null)
     } else if (isOpen && !lesson) {
@@ -99,10 +109,36 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setContentText('')
       setPdfUrl('')
       setPdfName('')
+      setUsefulLinks([])
       setErrorMessage(null)
       setSuccessMessage(null)
     }
   }, [isOpen, lesson])
+
+  // Gerenciamento dinâmico de links úteis
+  const handleAddUsefulLink = () => {
+    setUsefulLinks((prev) => [
+      ...prev,
+      {
+        id: `link-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+        title: '',
+        url: '',
+        description: '',
+      },
+    ])
+  }
+
+  const handleUpdateUsefulLink = (index: number, field: keyof UsefulLink, value: string) => {
+    setUsefulLinks((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const handleRemoveUsefulLink = (index: number) => {
+    setUsefulLinks((prev) => prev.filter((_, i) => i !== index))
+  }
 
   if (!isOpen) return null
 
@@ -183,6 +219,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         materials: lesson?.materials || [],
         pdf_url: pdfUrl || undefined,
         pdf_name: pdfName || undefined,
+        useful_links: usefulLinks.filter((l) => l.title.trim() && l.url.trim()),
       }
 
       let saved: SupabaseLesson
@@ -505,6 +542,108 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
               placeholder="Digite ou edite o conteúdo integral da aula, tópicos explicativos, orientações práticas..."
               className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D] transition-all font-sans leading-relaxed min-h-[220px]"
             />
+          </div>
+
+          {/* 6. Links Úteis da Aula (Secção Dinâmica) */}
+          <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-[#C59E5D]/20 text-[#0F1B2F]">
+                  <Link2 className="w-4 h-4 text-[#C59E5D]" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
+                    Links Úteis da Aula
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Artigos oficiais, fontes regulatórias, calculadoras ou materiais complementares
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddUsefulLink}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/50 transition-colors shadow-xs cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#C59E5D]" />
+                <span>+ Adicionar Link Útil</span>
+              </button>
+            </div>
+
+            {usefulLinks.length === 0 ? (
+              <div className="p-4 rounded-xl border border-dashed border-[#C59E5D]/40 text-center bg-white/70">
+                <Link2 className="w-6 h-6 text-[#C59E5D]/60 mx-auto mb-1" />
+                <p className="text-xs font-semibold text-slate-700">Nenhum link complementar adicionado ainda</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Clique em "+ Adicionar Link Útil" acima para anexar referências a esta aula
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {usefulLinks.map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs space-y-2.5 relative group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-[#0F1B2F] bg-[#FAF8F2] px-2 py-0.5 rounded border border-[#C59E5D]/40 uppercase tracking-wide">
+                        Link #{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveUsefulLink(idx)}
+                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Remover este link"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          Título do Link <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={item.title}
+                          onChange={(e) => handleUpdateUsefulLink(idx, 'title', e.target.value)}
+                          placeholder="Ex: Portal Oficial do IRS - W-2 Instructions"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C59E5D]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          URL / Link <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={item.url}
+                          onChange={(e) => handleUpdateUsefulLink(idx, 'url', e.target.value)}
+                          placeholder="https://www.irs.gov/pub/irs-pdf/iw2w3.pdf"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C59E5D]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                        Descrição Curta
+                      </label>
+                      <input
+                        type="text"
+                        value={item.description || ''}
+                        onChange={(e) => handleUpdateUsefulLink(idx, 'description', e.target.value)}
+                        placeholder="Ex: Guia passo a passo para conferência das retenções fiscais..."
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C59E5D]"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Rodapé com Botões de Ação */}
