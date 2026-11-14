@@ -22,12 +22,66 @@ import { supabase } from './lib/supabase'
 import { resolveUserRole } from './lib/roleUtils'
 
 export function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
-  const [currentRole, setCurrentRole] = useState<'student' | 'teacher' | 'admin'>('student')
-  const [currentUser, setCurrentUser] = useState<UserProfile>(mockUser)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem('hemingway_auth_profile')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        return Boolean(parsed && parsed.email)
+      }
+    } catch {
+      // fallback
+    }
+    return false
+  })
+
+  const [currentRole, setCurrentRole] = useState<'student' | 'teacher' | 'admin'>(() => {
+    try {
+      const cached = localStorage.getItem('hemingway_auth_profile')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed?.role) {
+          return resolveUserRole(parsed.role)
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return 'student'
+  })
+
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    try {
+      const cached = localStorage.getItem('hemingway_auth_profile')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed && parsed.email) {
+          parsed.role = resolveUserRole(parsed.role)
+          return parsed
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return mockUser
+  })
 
   // Roteamento e visualização ativa
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard')
+  const [activeView, setActiveView] = useState<ActiveView>(() => {
+    try {
+      const cached = localStorage.getItem('hemingway_auth_profile')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed?.role) {
+          const role = resolveUserRole(parsed.role)
+          return role === 'student' ? 'dashboard' : 'teacher-courses'
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return 'dashboard'
+  })
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false)
   const [isSupportModalOpen, setIsSupportModalOpen] = useState<boolean>(false)
@@ -45,67 +99,157 @@ export function App() {
 
   // Sincroniza sessão ativa do Supabase Auth e garante perfil existente na tabela profiles
   const syncUserSession = async (session: {
-    user: { id: string; email?: string; user_metadata?: Record<string, unknown> }
+    user: {
+      id: string
+      email?: string
+      user_metadata?: Record<string, unknown>
+      app_metadata?: Record<string, unknown>
+    }
   }) => {
     if (!session?.user) return false
 
     const authId = session.user.id
     const authEmail = (session.user.email || '').trim().toLowerCase()
+    const meta = session.user.user_metadata || {}
+    const appMeta = (session.user as unknown as { app_metadata?: Record<string, unknown> }).app_metadata || {}
 
-    // 1. Busca registro na tabela profiles pelo ID do Auth
+    // 1. Busca ampla na tabela profiles pelo ID do Auth e por e-mail (sem maybeSingle para suportar duplicatas)
     let profileData: Record<string, unknown> | null = null
 
     try {
-      const { data: profById } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authId)
-        .maybeSingle()
+      const candidates: Record<string, unknown>[] = []
 
-      if (profById) {
-        profileData = profById
-      } else if (authEmail) {
-        // 2. Fallback: busca por e-mail case-insensitive
-        const { data: profByEmail } = await supabase
+      // A) Busca direta por ID do Auth
+      try {
+        const { data: byId } = await supabase
           .from('profiles')
           .select('*')
-          .ilike('email', authEmail)
-          .maybeSingle()
+          .eq('id', authId)
+        if (byId && byId.length > 0) {
+          candidates.push(...byId)
+        }
+      } catch (err) {
+        console.warn('Aviso ao consultar profiles por ID:', err)
+      }
 
-        if (profByEmail) {
-          profileData = profByEmail
-        } else {
-          // Busca de segurança em caso de espaços extras no banco
-          const { data: allProfiles } = await supabase
+      // B) Busca por e-mail case-insensitive
+      if (authEmail) {
+        try {
+          const { data: byEmail } = await supabase
             .from('profiles')
             .select('*')
-            .limit(100)
-          if (allProfiles && allProfiles.length > 0) {
-            const found = allProfiles.find(
-              (p: Record<string, unknown>) =>
-                p.id === authId ||
-                (p.email && String(p.email).trim().toLowerCase() === authEmail),
-            )
-            if (found) {
-              profileData = found
+            .ilike('email', authEmail)
+          if (byEmail && byEmail.length > 0) {
+            candidates.push(...byEmail)
+          }
+        } catch (err) {
+          console.warn('Aviso ao consultar profiles por email ilike:', err)
+        }
+
+        // C) Busca tolerante a espaços extras no e-mail no banco
+        try {
+          const { data: byEmailTrim } = await supabase
+            .from('profiles')
+            .select('*')
+            .ilike('email', `%${authEmail}%`)
+          if (byEmailTrim && byEmailTrim.length > 0) {
+            candidates.push(...byEmailTrim)
+          }
+        } catch {
+          // prossegue
+        }
+      }
+
+      // D) Busca geral de contingência se nenhum foi localizado
+      if (candidates.length === 0) {
+        try {
+          const { data: allList } = await supabase
+            .from('profiles')
+            .select('*')
+            .limit(200)
+          if (allList && allList.length > 0) {
+            const matched = allList.filter((p: Record<string, unknown>) => {
+              const pId = String(p.id || '').trim()
+              const pEmail = String(p.email || '').trim().toLowerCase()
+              return pId === authId || (authEmail && pEmail === authEmail)
+            })
+            if (matched.length > 0) {
+              candidates.push(...matched)
             }
+          }
+        } catch {
+          // prossegue
+        }
+      }
+
+      // Seleciona o melhor registro encontrado dando prioridade ao role de maior privilégio (admin > teacher > student)
+      if (candidates.length > 0) {
+        const unique = Array.from(
+          new Map(candidates.map((c) => [c.id || Math.random(), c])).values(),
+        )
+        const getPriority = (row: Record<string, unknown>) => {
+          const r = resolveUserRole(
+            row.role ??
+              row.user_role ??
+              row.perfil ??
+              row.tipo ??
+              row.type ??
+              row.cargo ??
+              row.is_admin ??
+              row.isAdmin,
+          )
+          if (r === 'admin') return 3
+          if (r === 'teacher') return 2
+          return 1
+        }
+        unique.sort((a, b) => getPriority(b) - getPriority(a))
+        profileData = unique[0]
+      }
+
+      // Se encontrou o perfil no banco:
+      if (profileData) {
+        const winningRole = resolveUserRole(
+          profileData.role ??
+            profileData.user_role ??
+            profileData.perfil ??
+            profileData.tipo ??
+            profileData.type ??
+            profileData.cargo,
+        )
+
+        // Sincroniza o authId no profile se estiver com ID provisório
+        if (profileData.id !== authId) {
+          try {
+            await supabase.from('profiles').update({ id: authId }).eq('id', profileData.id)
+          } catch (e) {
+            console.warn('Aviso ao sincronizar ID do Auth no profile:', e)
+          }
+        }
+
+        // Se o usuário possui role de admin ou teacher no banco, assegura que o registro com o authId
+        // atual reflita esse papel real, corrigindo eventuais registros desatualizados
+        if (winningRole !== 'student') {
+          try {
+            await supabase.from('profiles').update({ role: winningRole }).eq('id', authId)
+          } catch {
+            // prossegue
           }
         }
       }
 
-      // Se encontrou o perfil mas o id no banco está desatualizado, sincroniza o ID SEM alterar o role!
-      if (profileData && profileData.id !== authId) {
-        try {
-          await supabase.from('profiles').update({ id: authId }).eq('id', profileData.id)
-        } catch (e) {
-          console.warn('Aviso ao sincronizar ID do Auth no profile:', e)
-        }
-      }
-
-      // 3. APENAS se o perfil NÃO existir de fato na tabela profiles, cria um novo registro
+      // 2. APENAS se o perfil NÃO existir de fato na tabela profiles, cria um novo registro
       if (!profileData) {
-        const meta = session.user.user_metadata || {}
-        const initialRole = resolveUserRole(meta.role)
+        // Verifica metadados de Auth caso venham do Supabase (app_metadata ou user_metadata)
+        const initialRole = resolveUserRole(
+          appMeta.role ??
+            appMeta.roles ??
+            appMeta.claims_admin ??
+            meta.role ??
+            meta.roles ??
+            meta.user_role ??
+            meta.perfil ??
+            meta.is_admin,
+        )
 
         const displayName = String(
           meta.full_name ||
@@ -140,11 +284,7 @@ export function App() {
             .select()
             .maybeSingle()
 
-          if (inserted) {
-            profileData = inserted
-          } else {
-            profileData = newProfile
-          }
+          profileData = inserted || newProfile
         } catch (insertErr) {
           console.warn('Aviso ao inserir perfil após login/OAuth:', insertErr)
           profileData = newProfile
@@ -154,12 +294,23 @@ export function App() {
       console.warn('Erro ao consultar tabela profiles:', e)
     }
 
-    // 4. Determina role real do usuário: PRIORIDADE TOTAL AO BANCO DE DADOS (profiles.role)
+    // 3. Determina role real do usuário: PRIORIDADE TOTAL AO BANCO DE DADOS (profiles.role)
     const finalRole: 'student' | 'teacher' | 'admin' = resolveUserRole(
-      profileData?.role ?? session.user.user_metadata?.role,
+      profileData?.role ??
+        profileData?.user_role ??
+        profileData?.perfil ??
+        profileData?.tipo ??
+        profileData?.cargo ??
+        appMeta.role ??
+        appMeta.roles ??
+        appMeta.claims_admin ??
+        meta.role ??
+        meta.roles ??
+        meta.user_role ??
+        meta.perfil ??
+        meta.is_admin,
     )
 
-    const meta = session.user.user_metadata || {}
     const userObj: UserProfile = {
       id: String(profileData?.id || authId),
       name: String(

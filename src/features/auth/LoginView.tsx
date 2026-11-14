@@ -95,16 +95,53 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     localStorage.clear()
     sessionStorage.clear()
 
+    const findBestProfileByEmail = async (emailToSearch: string) => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('email', emailToSearch)
+        if (data && data.length > 0) {
+          const unique = Array.from(new Map(data.map((c) => [c.id || Math.random(), c])).values())
+          unique.sort((a, b) => {
+            const getP = (row: Record<string, unknown>) => {
+              const r = resolveUserRole(
+                row.role ?? row.user_role ?? row.perfil ?? row.tipo ?? row.type ?? row.cargo ?? row.is_admin,
+              )
+              return r === 'admin' ? 3 : r === 'teacher' ? 2 : 1
+            }
+            return getP(b) - getP(a)
+          })
+          return unique[0]
+        }
+      } catch {
+        // prossegue
+      }
+      return null
+    }
+
     try {
       if (mode === 'register') {
         // 1. Cadastro via Supabase Auth
+        // Consulta se já existe perfil no banco para NUNCA rebaixar role de admin/teacher
+        const existingProf = await findBestProfileByEmail(cleanEmail)
+        const roleToAssign: 'admin' | 'teacher' | 'student' = existingProf
+          ? resolveUserRole(
+              existingProf.role ??
+                existingProf.user_role ??
+                existingProf.perfil ??
+                existingProf.tipo ??
+                existingProf.type,
+            )
+          : 'student'
+
         let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: password,
           options: {
             data: {
               name: name.trim(),
-              role: 'student',
+              role: roleToAssign,
             },
           },
         })
@@ -138,18 +175,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         if (signUpData?.user) {
           const authId = signUpData.user.id
 
-          // Consulta se já existe perfil no banco para não rebaixar role de admin/teacher
-          let roleToAssign: 'admin' | 'teacher' | 'student' = 'student'
-          const { data: existingProf } = await supabase
-            .from('profiles')
-            .select('*')
-            .ilike('email', cleanEmail)
-            .maybeSingle()
-
-          if (existingProf) {
-            roleToAssign = resolveUserRole(existingProf.role)
-          }
-
           const newProfile = {
             id: authId,
             email: cleanEmail,
@@ -158,7 +183,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             document_type: 'Passaporte Internacional',
             document_number: 'HEM-' + Date.now().toString().slice(-6),
             avatar_url:
-              existingProf?.avatar_url ||
+              String(existingProf?.avatar_url || '') ||
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
           }
 
@@ -221,14 +246,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         // Caso o Supabase responda que o e-mail não foi confirmado, NÃO BLOQUEIE O USUÁRIO
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
-          const { data: profByEmail } = await supabase
-            .from('profiles')
-            .select('*')
-            .ilike('email', cleanEmail)
-            .maybeSingle()
+          const profByEmail = await findBestProfileByEmail(cleanEmail)
 
           if (profByEmail) {
-            const finalRole = resolveUserRole(profByEmail.role)
+            const finalRole = resolveUserRole(
+              profByEmail.role ??
+                profByEmail.user_role ??
+                profByEmail.perfil ??
+                profByEmail.tipo ??
+                profByEmail.cargo,
+            )
 
             const mappedUser: UserProfile = {
               id: String(profByEmail.id || 'usr-' + Date.now()),
@@ -258,14 +285,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         // Se o erro for de credenciais inválidas, confere se o perfil já foi cadastrado na tabela profiles
         if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-          const { data: profByEmail } = await supabase
-            .from('profiles')
-            .select('*')
-            .ilike('email', cleanEmail)
-            .maybeSingle()
+          const profByEmail = await findBestProfileByEmail(cleanEmail)
 
           if (profByEmail) {
-            const finalRole = resolveUserRole(profByEmail.role)
+            const finalRole = resolveUserRole(
+              profByEmail.role ??
+                profByEmail.user_role ??
+                profByEmail.perfil ??
+                profByEmail.tipo ??
+                profByEmail.cargo,
+            )
 
             // Tenta registrar credencial no Supabase Auth automaticamente
             try {
@@ -327,58 +356,142 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       const authId = authData.user.id
       const authEmail = (authData.user.email || cleanEmail).trim().toLowerCase()
 
-      // 3. Busca o registro correspondente na tabela profiles
+      // 3. Busca ampla de registros correspondentes na tabela profiles (sem maybeSingle para suportar duplicatas)
       let profileRow: Record<string, unknown> | null = null
+      const candidates: Record<string, unknown>[] = []
 
-      const { data: profById } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authId)
-        .maybeSingle()
-
-      if (profById) {
-        profileRow = profById
-      } else {
-        // Fallback case-insensitive por e-mail
-        const { data: profByEmail } = await supabase
+      // A) Busca por ID
+      try {
+        const { data: byId } = await supabase
           .from('profiles')
           .select('*')
-          .ilike('email', authEmail)
-          .maybeSingle()
-        if (profByEmail) {
-          profileRow = profByEmail
-        } else {
-          // Busca de segurança em caso de espaços extras no banco
+          .eq('id', authId)
+        if (byId && byId.length > 0) {
+          candidates.push(...byId)
+        }
+      } catch {
+        // prossegue
+      }
+
+      // B) Busca por e-mail case-insensitive
+      if (authEmail) {
+        try {
+          const { data: byEmail } = await supabase
+            .from('profiles')
+            .select('*')
+            .ilike('email', authEmail)
+          if (byEmail && byEmail.length > 0) {
+            candidates.push(...byEmail)
+          }
+        } catch {
+          // prossegue
+        }
+
+        // C) Busca tolerante a espaços extras no e-mail no banco
+        try {
+          const { data: byEmailTrim } = await supabase
+            .from('profiles')
+            .select('*')
+            .ilike('email', `%${authEmail}%`)
+          if (byEmailTrim && byEmailTrim.length > 0) {
+            candidates.push(...byEmailTrim)
+          }
+        } catch {
+          // prossegue
+        }
+      }
+
+      // D) Busca geral de contingência
+      if (candidates.length === 0) {
+        try {
           const { data: allProfiles } = await supabase
             .from('profiles')
             .select('*')
-            .limit(100)
+            .limit(200)
           if (allProfiles && allProfiles.length > 0) {
-            const found = allProfiles.find(
+            const matched = allProfiles.filter(
               (p: Record<string, unknown>) =>
                 p.id === authId ||
                 (p.email && String(p.email).trim().toLowerCase() === authEmail),
             )
-            if (found) {
-              profileRow = found
+            if (matched.length > 0) {
+              candidates.push(...matched)
             }
+          }
+        } catch {
+          // prossegue
+        }
+      }
+
+      // Seleciona o melhor perfil dando prioridade estrita ao role mais privilegiado (admin > teacher > student)
+      if (candidates.length > 0) {
+        const unique = Array.from(
+          new Map(candidates.map((c) => [c.id || Math.random(), c])).values(),
+        )
+        const getPriority = (row: Record<string, unknown>) => {
+          const r = resolveUserRole(
+            row.role ??
+              row.user_role ??
+              row.perfil ??
+              row.tipo ??
+              row.type ??
+              row.cargo ??
+              row.is_admin ??
+              row.isAdmin,
+          )
+          if (r === 'admin') return 3
+          if (r === 'teacher') return 2
+          return 1
+        }
+        unique.sort((a, b) => getPriority(b) - getPriority(a))
+        profileRow = unique[0]
+      }
+
+      // Se encontrou o perfil no banco:
+      if (profileRow) {
+        const winningRole = resolveUserRole(
+          profileRow.role ??
+            profileRow.user_role ??
+            profileRow.perfil ??
+            profileRow.tipo ??
+            profileRow.type ??
+            profileRow.cargo,
+        )
+
+        // Se o id no banco está desatualizado, sincroniza o ID SEM alterar o role!
+        if (profileRow.id !== authId) {
+          try {
+            await supabase.from('profiles').update({ id: authId }).eq('id', profileRow.id)
+          } catch {
+            // prossegue normalmente
+          }
+        }
+
+        // Se o role real do banco for admin ou teacher, garante sincronia no registro com o authId atual
+        if (winningRole !== 'student') {
+          try {
+            await supabase.from('profiles').update({ role: winningRole }).eq('id', authId)
+          } catch {
+            // prossegue
           }
         }
       }
 
-      // Se encontrou o perfil mas o id no banco está desatualizado, sincroniza o ID SEM alterar o role!
-      if (profileRow && profileRow.id !== authId) {
-        try {
-          await supabase.from('profiles').update({ id: authId }).eq('id', profileRow.id)
-        } catch {
-          // prossegue normalmente
-        }
-      }
+      const meta = authData.user.user_metadata || {}
+      const appMeta = (authData.user as unknown as { app_metadata?: Record<string, unknown> }).app_metadata || {}
 
-      // Se não existir registro em profiles, cria novo registro respeitando metadados
+      // Se não existir registro em profiles, cria novo registro respeitando metadados de Auth
       if (!profileRow) {
-        const meta = authData.user.user_metadata || {}
-        const initialRole = resolveUserRole(meta.role)
+        const initialRole = resolveUserRole(
+          appMeta.role ??
+            appMeta.roles ??
+            appMeta.claims_admin ??
+            meta.role ??
+            meta.roles ??
+            meta.user_role ??
+            meta.perfil ??
+            meta.is_admin,
+        )
 
         const newRecord = {
           id: authId,
@@ -397,8 +510,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         profileRow = newRecord
       }
 
-      // CRÍTICO: Lê e respeita o role real vindo do banco de dados (profiles.role)
-      const finalRole = resolveUserRole(profileRow.role ?? authData.user.user_metadata?.role)
+      // CRÍTICO: Lê e respeita o role real vindo do banco de dados (profiles.role) e metadados
+      const finalRole = resolveUserRole(
+        profileRow.role ??
+          profileRow.user_role ??
+          profileRow.perfil ??
+          profileRow.tipo ??
+          profileRow.cargo ??
+          appMeta.role ??
+          appMeta.roles ??
+          appMeta.claims_admin ??
+          meta.role ??
+          meta.roles ??
+          meta.user_role ??
+          meta.perfil ??
+          meta.is_admin,
+      )
 
       const mappedUser: UserProfile = {
         id: String(profileRow.id || authId),
