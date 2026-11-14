@@ -1,10 +1,24 @@
 /**
+ * Helper de segurança para identificar superadministradores garantidos pelo e-mail
+ */
+export const isSuperAdminEmail = (email?: string | null): boolean => {
+  if (!email) return false
+  const clean = email.trim().toLowerCase()
+  return clean === 'flaviomottaminds@gmail.com'
+}
+
+/**
  * Normaliza e resolve o papel do usuário (role) garantindo que valores reais
  * do banco de dados Supabase (admin, administrator, teacher, professor, student, aluno, etc.)
  * sejam lidos e respeitados com máxima precisão no frontend, sem qualquer lógica fixa
  * que force o usuário existente como 'student'.
  */
-export const resolveUserRole = (rawRole: unknown): 'admin' | 'teacher' | 'student' => {
+export const resolveUserRole = (rawRole: unknown, email?: string | null): 'admin' | 'teacher' | 'student' => {
+  // Trava de segurança explícita para Super Administrador
+  if (isSuperAdminEmail(email)) {
+    return 'admin'
+  }
+
   if (rawRole === null || rawRole === undefined) return 'student'
 
   // Se for booleano (ex: is_admin = true)
@@ -14,8 +28,8 @@ export const resolveUserRole = (rawRole: unknown): 'admin' | 'teacher' | 'studen
 
   // Se for array (ex: roles = ['admin'] ou app_metadata.roles)
   if (Array.isArray(rawRole)) {
-    if (rawRole.some((item) => resolveUserRole(item) === 'admin')) return 'admin'
-    if (rawRole.some((item) => resolveUserRole(item) === 'teacher')) return 'teacher'
+    if (rawRole.some((item) => resolveUserRole(item, email) === 'admin')) return 'admin'
+    if (rawRole.some((item) => resolveUserRole(item, email) === 'teacher')) return 'teacher'
     return 'student'
   }
 
@@ -33,7 +47,7 @@ export const resolveUserRole = (rawRole: unknown): 'admin' | 'teacher' | 'studen
       obj.is_admin ??
       obj.isAdmin
     if (candidate !== undefined && candidate !== rawRole) {
-      return resolveUserRole(candidate)
+      return resolveUserRole(candidate, email)
     }
   }
 

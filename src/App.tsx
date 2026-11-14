@@ -19,7 +19,7 @@ import { SupportModal } from './components/modals/SupportModal'
 import { mockUser, mockTeacherUser, mockAdminUser, mockCourses, mockLesson } from './services/mockData'
 import type { ActiveView, UserProfile } from './types'
 import { supabase } from './lib/supabase'
-import { resolveUserRole } from './lib/roleUtils'
+import { resolveUserRole, isSuperAdminEmail } from './lib/roleUtils'
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -40,8 +40,9 @@ export function App() {
       const cached = localStorage.getItem('hemingway_auth_profile')
       if (cached) {
         const parsed = JSON.parse(cached)
+        if (isSuperAdminEmail(parsed?.email)) return 'admin'
         if (parsed?.role) {
-          return resolveUserRole(parsed.role)
+          return resolveUserRole(parsed.role, parsed.email)
         }
       }
     } catch {
@@ -56,7 +57,9 @@ export function App() {
       if (cached) {
         const parsed = JSON.parse(cached)
         if (parsed && parsed.email) {
-          parsed.role = resolveUserRole(parsed.role)
+          parsed.role = isSuperAdminEmail(parsed.email)
+            ? 'admin'
+            : resolveUserRole(parsed.role, parsed.email)
           return parsed
         }
       }
@@ -72,8 +75,9 @@ export function App() {
       const cached = localStorage.getItem('hemingway_auth_profile')
       if (cached) {
         const parsed = JSON.parse(cached)
+        if (isSuperAdminEmail(parsed?.email)) return 'teacher-courses'
         if (parsed?.role) {
-          const role = resolveUserRole(parsed.role)
+          const role = resolveUserRole(parsed.role, parsed.email)
           return role === 'student' ? 'dashboard' : 'teacher-courses'
         }
       }
@@ -112,6 +116,20 @@ export function App() {
     const authEmail = (session.user.email || '').trim().toLowerCase()
     const meta = session.user.user_metadata || {}
     const appMeta = (session.user as unknown as { app_metadata?: Record<string, unknown> }).app_metadata || {}
+    const isSuperAdmin = isSuperAdminEmail(authEmail)
+
+    // Trava de segurança explícita: se user.email === 'flaviomottaminds@gmail.com',
+    // sincroniza o banco com role = 'admin' sem nunca rebaixar
+    if (isSuperAdmin) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({ role: 'admin' })
+          .or(`id.eq.${authId},email.ilike.${authEmail}`)
+      } catch (e) {
+        console.warn('Aviso ao sincronizar Super Admin no Supabase:', e)
+      }
+    }
 
     // 1. Busca ampla na tabela profiles pelo ID do Auth e por e-mail (sem maybeSingle para suportar duplicatas)
     let profileData: Record<string, unknown> | null = null
@@ -295,21 +313,25 @@ export function App() {
     }
 
     // 3. Determina role real do usuário: PRIORIDADE TOTAL AO BANCO DE DADOS (profiles.role)
-    const finalRole: 'student' | 'teacher' | 'admin' = resolveUserRole(
-      profileData?.role ??
-        profileData?.user_role ??
-        profileData?.perfil ??
-        profileData?.tipo ??
-        profileData?.cargo ??
-        appMeta.role ??
-        appMeta.roles ??
-        appMeta.claims_admin ??
-        meta.role ??
-        meta.roles ??
-        meta.user_role ??
-        meta.perfil ??
-        meta.is_admin,
-    )
+    // Trava explícita: se for Super Admin (flaviomottaminds@gmail.com), force imediatamente 'admin'
+    const finalRole: 'student' | 'teacher' | 'admin' = isSuperAdmin
+      ? 'admin'
+      : resolveUserRole(
+          profileData?.role ??
+            profileData?.user_role ??
+            profileData?.perfil ??
+            profileData?.tipo ??
+            profileData?.cargo ??
+            appMeta.role ??
+            appMeta.roles ??
+            appMeta.claims_admin ??
+            meta.role ??
+            meta.roles ??
+            meta.user_role ??
+            meta.perfil ??
+            meta.is_admin,
+          authEmail,
+        )
 
     const userObj: UserProfile = {
       id: String(profileData?.id || authId),
@@ -426,7 +448,9 @@ export function App() {
   // Ação de Login: Recebe o perfil real ou mock e direciona para o painel correto
   const handleLoginSuccess = (userProfile?: UserProfile) => {
     const profile = userProfile || mockUser
-    const role = resolveUserRole(profile.role)
+    const role = isSuperAdminEmail(profile.email)
+      ? 'admin'
+      : resolveUserRole(profile.role, profile.email)
     profile.role = role
     setCurrentUser(profile)
     setCurrentRole(role)
@@ -544,6 +568,7 @@ export function App() {
           onClose={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
           currentRole={currentRole}
+          currentUser={currentUser}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
           onOpenSupport={() => setIsSupportModalOpen(true)}
         />

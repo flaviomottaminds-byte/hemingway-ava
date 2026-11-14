@@ -280,46 +280,22 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
           <div className="flex items-center gap-2.5">
             <Calendar className="w-5 h-5 text-blue-600" />
             <h3 className="font-bold text-slate-900">
-              {t('dashboard.upcomingLive.title')}
+              {t('dashboard.upcomingLive.title', 'Próximos Plantões de Dúvidas ao Vivo')}
             </h3>
           </div>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-            Trilíngue (PT / EN / ES)
+          <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+            Apoio Pedagógico
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-blue-700">Hoje às 19:30 EST</p>
-              <h4 className="text-sm font-bold text-slate-900 mt-0.5">
-                Plantão de Dúvidas: Formulários Fiscais & ITIN
-              </h4>
-              <p className="text-xs text-slate-500 mt-1">Com especialista em finanças para recém-chegados</p>
-            </div>
-            <button
-              type="button"
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors shrink-0 cursor-pointer ml-3"
-            >
-              {t('dashboard.upcomingLive.join')}
-            </button>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-indigo-700">Quinta às 20:00 EST</p>
-              <h4 className="text-sm font-bold text-slate-900 mt-0.5">
-                Simulado Oral para Entrevista de Cidadania
-              </h4>
-              <p className="text-xs text-slate-500 mt-1">Treinamento prático das 100 perguntas cívicas</p>
-            </div>
-            <button
-              type="button"
-              className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-medium transition-colors shrink-0 cursor-pointer ml-3"
-            >
-              Lembrar-me
-            </button>
-          </div>
+        <div className="p-8 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center">
+          <Calendar className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+          <p className="text-sm font-semibold text-slate-700">
+            Nenhum plantão ao vivo agendado para suas turmas no momento
+          </p>
+          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+            Assim que seus professores agendarem novas sessões síncronas de tira-dúvidas ou simulados orais, os links de acesso aparecerão aqui.
+          </p>
         </div>
       </section>
 

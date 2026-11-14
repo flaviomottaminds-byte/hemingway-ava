@@ -17,7 +17,7 @@ import { supabase } from '../../lib/supabase'
 import type { UserProfile } from '../../types'
 import { mockUser } from '../../services/mockData'
 import { ForgotPasswordModal } from './ForgotPasswordModal'
-import { resolveUserRole } from '../../lib/roleUtils'
+import { resolveUserRole, isSuperAdminEmail } from '../../lib/roleUtils'
 
 interface LoginViewProps {
   onLoginSuccess: (profile?: UserProfile) => void
@@ -124,14 +124,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       if (mode === 'register') {
         // 1. Cadastro via Supabase Auth
         // Consulta se já existe perfil no banco para NUNCA rebaixar role de admin/teacher
+        const isSuperAdmin = isSuperAdminEmail(cleanEmail)
         const existingProf = await findBestProfileByEmail(cleanEmail)
-        const roleToAssign: 'admin' | 'teacher' | 'student' = existingProf
+        const roleToAssign: 'admin' | 'teacher' | 'student' = isSuperAdmin
+          ? 'admin'
+          : existingProf
           ? resolveUserRole(
               existingProf.role ??
                 existingProf.user_role ??
                 existingProf.perfil ??
                 existingProf.tipo ??
                 existingProf.type,
+              cleanEmail,
             )
           : 'student'
 
@@ -479,19 +483,35 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
       const meta = authData.user.user_metadata || {}
       const appMeta = (authData.user as unknown as { app_metadata?: Record<string, unknown> }).app_metadata || {}
+      const isSuperAdmin = isSuperAdminEmail(authEmail)
+
+      // Trava de segurança explícita para Super Admin (flaviomottaminds@gmail.com)
+      if (isSuperAdmin) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ role: 'admin' })
+            .or(`id.eq.${authId},email.ilike.${authEmail}`)
+        } catch {
+          // prossegue
+        }
+      }
 
       // Se não existir registro em profiles, cria novo registro respeitando metadados de Auth
       if (!profileRow) {
-        const initialRole = resolveUserRole(
-          appMeta.role ??
-            appMeta.roles ??
-            appMeta.claims_admin ??
-            meta.role ??
-            meta.roles ??
-            meta.user_role ??
-            meta.perfil ??
-            meta.is_admin,
-        )
+        const initialRole = isSuperAdmin
+          ? 'admin'
+          : resolveUserRole(
+              appMeta.role ??
+                appMeta.roles ??
+                appMeta.claims_admin ??
+                meta.role ??
+                meta.roles ??
+                meta.user_role ??
+                meta.perfil ??
+                meta.is_admin,
+              authEmail,
+            )
 
         const newRecord = {
           id: authId,
@@ -511,21 +531,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       }
 
       // CRÍTICO: Lê e respeita o role real vindo do banco de dados (profiles.role) e metadados
-      const finalRole = resolveUserRole(
-        profileRow.role ??
-          profileRow.user_role ??
-          profileRow.perfil ??
-          profileRow.tipo ??
-          profileRow.cargo ??
-          appMeta.role ??
-          appMeta.roles ??
-          appMeta.claims_admin ??
-          meta.role ??
-          meta.roles ??
-          meta.user_role ??
-          meta.perfil ??
-          meta.is_admin,
-      )
+      const finalRole: 'student' | 'teacher' | 'admin' = isSuperAdmin
+        ? 'admin'
+        : resolveUserRole(
+            profileRow.role ??
+              profileRow.user_role ??
+              profileRow.perfil ??
+              profileRow.tipo ??
+              profileRow.cargo ??
+              appMeta.role ??
+              appMeta.roles ??
+              appMeta.claims_admin ??
+              meta.role ??
+              meta.roles ??
+              meta.user_role ??
+              meta.perfil ??
+              meta.is_admin,
+            authEmail,
+          )
 
       const mappedUser: UserProfile = {
         id: String(profileRow.id || authId),

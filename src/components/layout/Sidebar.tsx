@@ -23,7 +23,8 @@ import {
   Eye,
   Info,
 } from 'lucide-react'
-import type { ActiveView } from '../../types'
+import type { ActiveView, UserProfile } from '../../types'
+import { studentEnrollmentService } from '../../services/studentEnrollmentService'
 
 interface SidebarProps {
   activeView: ActiveView
@@ -32,6 +33,7 @@ interface SidebarProps {
   onClose: () => void
   onLogout: () => void
   currentRole: 'student' | 'teacher' | 'admin'
+  currentUser?: UserProfile
   onOpenSettings?: () => void
   onOpenSupport?: () => void
 }
@@ -43,10 +45,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   onLogout,
   currentRole = 'student',
+  currentUser,
   onOpenSettings,
   onOpenSupport,
 }) => {
   const { t } = useTranslation()
+
+  // Progresso dinâmico real do aluno no Supabase
+  const [studentProgress, setStudentProgress] = useState<{
+    completedLessons: number
+    totalLessons: number
+    percent: number
+  }>({
+    completedLessons: 0,
+    totalLessons: 0,
+    percent: 0,
+  })
+
+  useEffect(() => {
+    const fetchProgress = async () => {
+      if (currentRole !== 'student' || !currentUser?.id) return
+      try {
+        const enrollments = await studentEnrollmentService.getStudentEnrollments(currentUser.id)
+        if (enrollments && enrollments.length > 0) {
+          const courseIds = enrollments.map((e) => e.course.id).filter(Boolean)
+          let totalLessons = 0
+
+          if (courseIds.length > 0) {
+            const { data: lessons } = await supabase
+              .from('lessons')
+              .select('id, course_id')
+              .in('course_id', courseIds)
+            totalLessons = lessons?.length ?? 0
+          }
+
+          const completedEnrollments = enrollments.filter((e) => e.enrollment.status === 'completed')
+          const completedLessons = totalLessons > 0
+            ? Math.min(
+                totalLessons,
+                Math.round((completedEnrollments.length / enrollments.length) * totalLessons),
+              )
+            : 0
+
+          const pct =
+            totalLessons > 0 ? Math.min(100, Math.round((completedLessons / totalLessons) * 100)) : 0
+
+          setStudentProgress({
+            completedLessons,
+            totalLessons,
+            percent: pct,
+          })
+        } else {
+          setStudentProgress({
+            completedLessons: 0,
+            totalLessons: 0,
+            percent: 0,
+          })
+        }
+      } catch (err) {
+        console.warn('Erro ao consultar progresso do aluno na sidebar:', err)
+      }
+    }
+
+    fetchProgress()
+  }, [currentRole, currentUser?.id])
 
   // Contadores dinâmicos reais do Supabase (Cursos, Docentes e Alunos)
   const [counts, setCounts] = useState<{ courses: number; teachers: number; students: number }>({
@@ -458,7 +520,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="relative z-10">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-bold text-[#C59E5D]">
-                    Prof. Leonardo Dias
+                    {currentUser?.name || 'Docente AVA'}
                   </span>
                   <span className="text-[10px] font-bold text-[#0F1B2F] bg-[#C59E5D] px-1.5 py-0.5 rounded">
                     Ativo
@@ -483,15 +545,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className="text-xs font-bold text-[#C59E5D]">
                     {t('sidebar.quickStats', 'Seu Progresso Semanal')}
                   </span>
-                  <span className="text-xs font-bold text-[#C59E5D]">75%</span>
+                  <span className="text-xs font-bold text-[#C59E5D]">
+                    {studentProgress.percent}%
+                  </span>
                 </div>
                 <p className="text-xs text-[#EADBBE]/80 mb-3">
-                  {t('sidebar.progressLabel', 'Metas alcançadas')}: 14.5 / 20 hrs
+                  Aulas concluídas: {studentProgress.completedLessons} / {studentProgress.totalLessons} aulas
                 </p>
                 <div className="w-full bg-[#0A1220] rounded-full h-2 overflow-hidden border border-[#C59E5D]/20">
                   <div
                     className="bg-gradient-to-r from-[#C59E5D] to-[#EADBBE] h-2 rounded-full transition-all duration-500"
-                    style={{ width: '75%' }}
+                    style={{ width: `${studentProgress.percent}%` }}
                   />
                 </div>
               </div>
