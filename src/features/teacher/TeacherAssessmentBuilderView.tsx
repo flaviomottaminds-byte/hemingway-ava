@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ListOrdered,
   Sliders,
+  UploadCloud,
 } from 'lucide-react'
 import type {
   SupabaseCourse,
@@ -26,6 +27,7 @@ import { curriculumService } from '../../services/curriculumService'
 import { lessonService } from '../../services/lessonService'
 import { assessmentService } from '../../services/assessmentService'
 import { QuestionCard } from './components/QuestionCard'
+import { SmartExamImporterModal } from './components/SmartExamImporterModal'
 
 interface TeacherAssessmentBuilderViewProps {
   assessmentId?: string | null
@@ -63,6 +65,9 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
   const [passingScore, setPassingScore] = useState<number | string>(7)
   const [maxAttempts, setMaxAttempts] = useState<number | string>(3)
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | string>(30)
+
+  // Modal do Importador Inteligente de Provas
+  const [isImporterOpen, setIsImporterOpen] = useState(false)
 
   // 2. Construtor de Questões (Array de questões)
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([
@@ -309,6 +314,15 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
       })),
     )
     showToast(`Pontos distribuídos: ${pointsPerQuestion} pts por questão!`)
+  }
+
+  // Ação do Importador de Provas: Aplicar questões importadas no construtor
+  const handleQuestionsImported = (importedQuestions: AssessmentQuestion[], suggestedTitle?: string) => {
+    if (suggestedTitle && !title) {
+      setTitle(suggestedTitle)
+    }
+    setQuestions(importedQuestions)
+    showToast(`${importedQuestions.length} questões carregadas no construtor com sucesso!`)
   }
 
   // Validação
@@ -705,6 +719,17 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
               Recolher Todas
             </button>
 
+            {/* Botão de Importação Inteligente (Word / PDF / Texto) */}
+            <button
+              type="button"
+              onClick={() => setIsImporterOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs sm:text-sm font-bold rounded-xl transition-all transform active:scale-[0.98] cursor-pointer"
+              title="Importar questões de arquivos Word (.docx), PDF ou colando texto"
+            >
+              <UploadCloud className="w-4 h-4 stroke-[2.5] text-blue-600" />
+              <span>Importar Questões (Word / PDF / Texto)</span>
+            </button>
+
             {/* Botão Destaque: "+ Adicionar Nova Questão" */}
             <button
               type="button"
@@ -787,6 +812,22 @@ export const TeacherAssessmentBuilderView: React.FC<TeacherAssessmentBuilderView
           </button>
         </div>
       </div>
+
+      {/* Modal Importador Inteligente de Provas */}
+      <SmartExamImporterModal
+        isOpen={isImporterOpen}
+        onClose={() => setIsImporterOpen(false)}
+        courses={courses}
+        disciplines={disciplines}
+        defaultCourseId={selectedCourseId}
+        defaultDisciplineId={selectedDisciplineId}
+        defaultLessonId={selectedLessonId}
+        onQuestionsImported={handleQuestionsImported}
+        onSaveToDatabaseSuccess={(saved) => {
+          showToast(`Avaliação "${saved.title}" gravada no Supabase com sucesso!`)
+          onSaveSuccess(saved)
+        }}
+      />
     </div>
   )
 }

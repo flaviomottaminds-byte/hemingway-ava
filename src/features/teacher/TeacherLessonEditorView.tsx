@@ -48,6 +48,7 @@ import { curriculumService } from '../../services/curriculumService'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
 import { extractTextFromPdf } from '../../utils/pdfExtractor'
 import { LessonEditModal } from './components/LessonEditModal'
+import { SmartExamImporterModal } from './components/SmartExamImporterModal'
 
 interface TeacherLessonEditorViewProps {
   lessonId?: string | null
@@ -87,6 +88,9 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   // Modal de Edição Rápida
   const [selectedLessonForModal, setSelectedLessonForModal] = useState<SupabaseLesson | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  // Modal do Importador de Provas (Word / PDF / Texto)
+  const [isImporterOpen, setIsImporterOpen] = useState(false)
 
   // Dados de contexto
   const [courses, setCourses] = useState<SupabaseCourse[]>([])
@@ -547,6 +551,16 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                 title="Recarregar aulas do Supabase"
               >
                 <RefreshCw className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsImporterOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs sm:text-sm font-bold rounded-xl transition-all transform active:scale-[0.98] cursor-pointer"
+                title="Importar questões de arquivos Word (.docx), PDF ou colando texto"
+              >
+                <UploadCloud className="w-4 h-4 stroke-[2.5] text-blue-600" />
+                <span>Importar Questões (Word / PDF / Texto)</span>
               </button>
 
               <button
@@ -1604,6 +1618,19 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         }}
         lesson={selectedLessonForModal}
         onSaved={handleLessonSaved}
+      />
+
+      {/* Modal Importador Inteligente de Provas */}
+      <SmartExamImporterModal
+        isOpen={isImporterOpen}
+        onClose={() => setIsImporterOpen(false)}
+        courses={courses}
+        disciplines={disciplines}
+        defaultCourseId={selectedCourseId}
+        defaultDisciplineId={selectedDisciplineId}
+        onSaveToDatabaseSuccess={(saved) => {
+          showToast(`Avaliação "${saved.title}" salva no Supabase com sucesso!`)
+        }}
       />
     </div>
   )
