@@ -14,6 +14,60 @@ export interface LessonSlidesConfig {
   slides_url_es?: string
 }
 
+/**
+ * Utilitário para formatar links do Gamma.app no padrão embed: https://gamma.app/embed/[ID]
+ * Aceita:
+ * - Links de visualização: https://gamma.app/docs/Titulo-da-Aula-xyz123
+ * - Links públicos: https://gamma.app/public/Titulo-da-Aula-xyz123
+ * - Código <iframe> completo: <iframe src="https://gamma.app/embed/xyz123" ...>
+ * - Links já em /embed/: https://gamma.app/embed/xyz123
+ */
+export function formatGammaEmbedUrl(url: string): string {
+  if (!url) return ''
+  let cleaned = url.trim()
+
+  // 1. Extração se for código de <iframe> completo copiado do Share > Embed
+  if (cleaned.includes('<iframe') || cleaned.includes('src=')) {
+    const srcMatch = cleaned.match(/src=["']([^"']+)["']/i)
+    if (srcMatch && srcMatch[1]) {
+      cleaned = srcMatch[1].trim()
+    }
+  }
+
+  // 2. Se já for embed direto https://gamma.app/embed/[ID]
+  const embedMatch = cleaned.match(/(?:https?:\/\/)?(?:www\.)?gamma\.app\/embed\/([^/?#\s"'>]+)/i)
+  if (embedMatch && embedMatch[1]) {
+    return `https://gamma.app/embed/${embedMatch[1]}`
+  }
+
+  // 3. Links comuns: https://gamma.app/docs/[ID] ou /public/[ID] ou /m/[ID]
+  const docMatch = cleaned.match(/(?:https?:\/\/)?(?:www\.)?gamma\.app\/(?:docs|public|m)\/([^/?#\s"'>]+)/i)
+  if (docMatch && docMatch[1]) {
+    return `https://gamma.app/embed/${docMatch[1]}`
+  }
+
+  // 4. Link direto no domínio raiz: https://gamma.app/[ID] (evitando rotas do sistema)
+  const shortMatch = cleaned.match(/(?:https?:\/\/)?(?:www\.)?gamma\.app\/([^/?#\s"'>]+)/i)
+  if (
+    shortMatch &&
+    shortMatch[1] &&
+    !['docs', 'public', 'embed', 'm', 'signin', 'signup', 'pricing', 'about', 'app'].includes(shortMatch[1].toLowerCase())
+  ) {
+    return `https://gamma.app/embed/${shortMatch[1]}`
+  }
+
+  // 5. Fallback para variações com query strings ou caminhos adicionais
+  if (cleaned.includes('gamma.app')) {
+    let result = cleaned.replace(/\/docs\//i, '/embed/').replace(/\/public\//i, '/embed/')
+    if (!result.includes('/embed/')) {
+      result = result.replace(/gamma\.app\/([^/?#]+)/i, 'gamma.app/embed/$1')
+    }
+    return result.split('?')[0].split('#')[0]
+  }
+
+  return cleaned
+}
+
 export function extractSlidesFromContent(content: string): { slides: LessonSlidesConfig; cleanContent: string } {
   if (!content) return { slides: {}, cleanContent: '' }
   const startIdx = content.indexOf(SLIDES_MARKER_START)
@@ -39,11 +93,12 @@ export function embedSlidesInContent(content: string, slides?: LessonSlidesConfi
   if (!slides || (!slides.slides_url && !slides.slides_url_pt && !slides.slides_url_en && !slides.slides_url_es)) {
     return cleanContent
   }
+  const cleanUrl = (u?: string) => (u && u.includes('gamma.app') ? formatGammaEmbedUrl(u) : u || '')
   const jsonStr = JSON.stringify({
-    slides_url: slides.slides_url || slides.slides_url_pt || '',
-    slides_url_pt: slides.slides_url_pt || slides.slides_url || '',
-    slides_url_en: slides.slides_url_en || '',
-    slides_url_es: slides.slides_url_es || '',
+    slides_url: cleanUrl(slides.slides_url || slides.slides_url_pt),
+    slides_url_pt: cleanUrl(slides.slides_url_pt || slides.slides_url),
+    slides_url_en: cleanUrl(slides.slides_url_en),
+    slides_url_es: cleanUrl(slides.slides_url_es),
   })
   return `${cleanContent}\n\n${SLIDES_MARKER_START}${jsonStr}${SLIDES_MARKER_END}`
 }

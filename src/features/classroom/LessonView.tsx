@@ -251,9 +251,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
                 }`}
               >
                 <Presentation className="w-3.5 h-3.5 text-[#C59E5D]" />
-                <span>Apresentação de Slides</span>
+                <span>Slides da Aula</span>
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
-                  Novo
+                  Gamma / PDF
                 </span>
               </button>
             )}
@@ -268,7 +268,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
                 }`}
               >
                 <FileText className="w-3.5 h-3.5 text-[#C59E5D]" />
-                <span>Material / Apostila em PDF</span>
+                <span>Apostila / Material em PDF</span>
               </button>
             )}
           </div>
@@ -439,7 +439,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
               }`}
             >
               <Presentation className="w-4 h-4 text-[#C59E5D]" />
-              <span>Apresentação de Slides</span>
+              <span>Slides da Aula</span>
             </button>
           )}
           <button

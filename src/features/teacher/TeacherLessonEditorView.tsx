@@ -46,7 +46,7 @@ import type {
 } from '../../types'
 import { courseService } from '../../services/courseService'
 import { curriculumService } from '../../services/curriculumService'
-import { lessonService, extractYouTubeId } from '../../services/lessonService'
+import { lessonService, extractYouTubeId, formatGammaEmbedUrl } from '../../services/lessonService'
 import type { CreateLessonDTO } from '../../services/lessonService'
 import { extractTextFromPdf } from '../../utils/pdfExtractor'
 import { LessonEditModal } from './components/LessonEditModal'
@@ -1216,7 +1216,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
             )}
           </div>
 
-          {/* 1.5. APRESENTAÇÃO DE SLIDES (PT / EN / ES) — Gamma, Canva, Google Slides, PPTX, PDF */}
+          {/* 1.5. APRESENTAÇÃO DE SLIDES (Link do Gamma.app ou Upload de PDF) */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
@@ -1226,14 +1226,14 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-[#0F1B2F] uppercase tracking-wider">
-                      Apresentação de Slides
+                      Apresentação de Slides (Link do Gamma.app ou Upload de PDF)
                     </h3>
                     <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
                       PT / EN / ES
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Cole o link de compartilhamento (Gamma.app, Canva, Google Slides) ou faça upload de .pdf ou .pptx
+                    Cole o link do Gamma.app (link comum ou código de embed) ou envie PDF exportado do Gamma (.pdf ou .pptx)
                   </p>
                 </div>
               </div>
@@ -1279,12 +1279,12 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
             {/* Input para Colar Link Externo ou Arquivo Carregado */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-700">
-                Link da Apresentação em {activeSlideLangTab.toUpperCase()}:
+                Link da Apresentação em {activeSlideLangTab.toUpperCase()} (Gamma.app / PDF):
               </label>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1">
                   <input
-                    type="url"
+                    type="text"
                     value={
                       activeSlideLangTab === 'pt'
                         ? slidesUrlPt
@@ -1294,11 +1294,14 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                     }
                     onChange={(e) => {
                       const val = e.target.value
-                      if (activeSlideLangTab === 'pt') setSlidesUrlPt(val)
-                      else if (activeSlideLangTab === 'en') setSlidesUrlEn(val)
-                      else if (activeSlideLangTab === 'es') setSlidesUrlEs(val)
+                      const formatted = (val.includes('gamma.app') || val.includes('<iframe') || val.includes('src='))
+                        ? formatGammaEmbedUrl(val)
+                        : val
+                      if (activeSlideLangTab === 'pt') setSlidesUrlPt(formatted)
+                      else if (activeSlideLangTab === 'en') setSlidesUrlEn(formatted)
+                      else if (activeSlideLangTab === 'es') setSlidesUrlEs(formatted)
                     }}
-                    placeholder="Cole a URL do Gamma.app, Canva, Google Slides ou arquivo .pptx/.pdf"
+                    placeholder="Cole o link do Gamma.app (ex: https://gamma.app/docs/... ou <iframe src=...>) ou arquivo PDF"
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D] transition-all"
                   />
                   {(activeSlideLangTab === 'pt' ? slidesUrlPt : activeSlideLangTab === 'en' ? slidesUrlEn : slidesUrlEs) && (
@@ -1334,7 +1337,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                   onClick={() => slidesFileInputRef.current?.click()}
                   disabled={isUploadingSlides}
                   className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] text-xs font-bold rounded-xl border border-[#C59E5D]/40 transition shadow-sm cursor-pointer shrink-0 disabled:opacity-50"
-                  title="Enviar arquivo de slides para o Supabase Storage"
+                  title="Enviar arquivo de slides/PDF para o Supabase Storage"
                 >
                   {isUploadingSlides ? (
                     <>
@@ -1344,7 +1347,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                   ) : (
                     <>
                       <UploadCloud className="w-4 h-4 text-[#C59E5D]" />
-                      <span>Upload (.pdf / .pptx)</span>
+                      <span>Upload de PDF / Slides</span>
                     </>
                   )}
                 </button>
@@ -1352,8 +1355,8 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
 
               <div className="p-3 bg-[#FAF8F2] rounded-xl border border-[#C59E5D]/30 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
-                  <span className="font-bold text-[#0F1B2F]">Suporte Total:</span>
-                  <span>Gamma.app, Canva, Google Slides e arquivos .pptx / .pdf</span>
+                  <span className="font-bold text-[#0F1B2F]">Gamma.app Nativo:</span>
+                  <span>Aceita link de visualização (gamma.app/docs/...), código &lt;iframe&gt; do Share &gt; Embed, ou PDF exportado do Gamma.</span>
                 </span>
                 {(activeSlideLangTab === 'pt' ? slidesUrlPt : activeSlideLangTab === 'en' ? slidesUrlEn : slidesUrlEs) && (
                   <a

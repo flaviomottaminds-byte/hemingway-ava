@@ -20,7 +20,7 @@ import {
   Presentation,
 } from 'lucide-react'
 import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline, UsefulLink } from '../../../types'
-import { lessonService, extractYouTubeId } from '../../../services/lessonService'
+import { lessonService, extractYouTubeId, formatGammaEmbedUrl } from '../../../services/lessonService'
 import { courseService } from '../../../services/courseService'
 import { curriculumService } from '../../../services/curriculumService'
 import { extractTextFromPdf } from '../../../utils/pdfExtractor'
@@ -579,7 +579,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
             )}
           </div>
 
-          {/* 4.5. Apresentação de Slides (PT / EN / ES) — Suporte a Gamma, Canva, Google Slides, PPTX, PDF */}
+          {/* 4.5. Apresentação de Slides (Link do Gamma.app ou Upload de PDF) */}
           <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-3.5 shadow-2xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#C59E5D]/20 pb-2.5">
               <div className="flex items-center gap-2.5">
@@ -588,13 +588,13 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs sm:text-sm font-extrabold text-[#0F1B2F] uppercase tracking-wide flex items-center gap-2">
-                    <span>Apresentação de Slides</span>
+                    <span>Apresentação de Slides (Link do Gamma.app ou Upload de PDF)</span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C59E5D] text-[#0F1B2F]">
                       PT / EN / ES
                     </span>
                   </h4>
                   <p className="text-[11px] text-slate-500">
-                    Insira link externo (Gamma.app, Canva, Google Slides) ou faça upload de arquivo (.pdf ou .pptx)
+                    Insira link do Gamma.app (link comum ou código de embed) ou envie PDF exportado do Gamma
                   </p>
                 </div>
               </div>
@@ -640,12 +640,12 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
             {/* Input para Colar Link Externo ou URL Gerada */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                Link da Apresentação em {activeSlideLangTab.toUpperCase()}:
+                Link da Apresentação em {activeSlideLangTab.toUpperCase()} (Gamma.app / PDF):
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <input
-                    type="url"
+                    type="text"
                     value={
                       activeSlideLangTab === 'pt'
                         ? slidesUrlPt
@@ -655,11 +655,14 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                     }
                     onChange={(e) => {
                       const val = e.target.value
-                      if (activeSlideLangTab === 'pt') setSlidesUrlPt(val)
-                      else if (activeSlideLangTab === 'en') setSlidesUrlEn(val)
-                      else if (activeSlideLangTab === 'es') setSlidesUrlEs(val)
+                      const formatted = (val.includes('gamma.app') || val.includes('<iframe') || val.includes('src='))
+                        ? formatGammaEmbedUrl(val)
+                        : val
+                      if (activeSlideLangTab === 'pt') setSlidesUrlPt(formatted)
+                      else if (activeSlideLangTab === 'en') setSlidesUrlEn(formatted)
+                      else if (activeSlideLangTab === 'es') setSlidesUrlEs(formatted)
                     }}
-                    placeholder="Cole a URL do Gamma.app, Canva, Google Slides ou link público de .pptx/.pdf"
+                    placeholder="Cole o link do Gamma.app (ex: https://gamma.app/docs/... ou <iframe src=...>) ou URL de PDF"
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D]"
                   />
                   {(activeSlideLangTab === 'pt' ? slidesUrlPt : activeSlideLangTab === 'en' ? slidesUrlEn : slidesUrlEs) && (
@@ -695,7 +698,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                   onClick={() => slidesFileInputRef.current?.click()}
                   disabled={isUploadingSlides}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] text-xs font-bold rounded-xl border border-[#C59E5D]/40 transition shadow-xs cursor-pointer shrink-0 disabled:opacity-50"
-                  title="Enviar arquivo de slides para o Supabase Storage"
+                  title="Enviar arquivo de slides/PDF para o Supabase Storage"
                 >
                   {isUploadingSlides ? (
                     <>
@@ -705,14 +708,14 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                   ) : (
                     <>
                       <UploadCloud className="w-4 h-4 text-[#C59E5D]" />
-                      <span>Upload (.pdf / .pptx)</span>
+                      <span>Upload de PDF / Slides</span>
                     </>
                   )}
                 </button>
               </div>
               <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
-                <span className="font-semibold text-slate-700">Dica:</span>
-                <span>Aceita links de compartilhamento do Gamma, Canva, Google Slides ou upload direto de arquivos PowerPoint (.pptx) e PDF.</span>
+                <span className="font-semibold text-slate-700">Dica Gamma:</span>
+                <span>Aceita link direto do Gamma.app (docs/...), código &lt;iframe&gt; do Share &gt; Embed, ou PDF exportado do Gamma.</span>
               </p>
             </div>
           </div>

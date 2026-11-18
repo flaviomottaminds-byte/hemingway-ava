@@ -12,6 +12,9 @@ import {
   ZoomOut,
   RotateCcw,
 } from 'lucide-react'
+import { formatGammaEmbedUrl } from '../../../services/lessonService'
+
+export { formatGammaEmbedUrl }
 
 export interface SlideViewerProps {
   slidesUrl?: string
@@ -48,6 +51,9 @@ export function formatSlideEmbedUrl(url: string, provider: SlideProviderType, pd
   const trimmed = url.trim()
 
   switch (provider) {
+    case 'gamma': {
+      return formatGammaEmbedUrl(trimmed)
+    }
     case 'google_slides': {
       let formatted = trimmed
       if (formatted.includes('/edit')) {
@@ -67,17 +73,6 @@ export function formatSlideEmbedUrl(url: string, provider: SlideProviderType, pd
       } catch {
         return trimmed.includes('?') ? `${trimmed}&embed` : `${trimmed}?embed`
       }
-    }
-    case 'gamma': {
-      let clean = trimmed
-      if (clean.includes('/docs/')) {
-        clean = clean.replace('/docs/', '/embed/')
-      } else if (clean.includes('/public/')) {
-        clean = clean.replace('/public/', '/embed/')
-      } else if (!clean.includes('/embed')) {
-        clean = clean.includes('?') ? `${clean}&embed=true` : `${clean}?embed=true`
-      }
-      return clean
     }
     case 'powerpoint': {
       return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(trimmed)}`
@@ -102,7 +97,9 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
   lessonTitle = 'Apresentação de Slides',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false)
+  const [isCssFullscreen, setIsCssFullscreen] = useState(false)
+  const isFullscreen = isNativeFullscreen || isCssFullscreen
   const [activeLang, setActiveLang] = useState<'pt' | 'en' | 'es'>(preferredLanguage)
   const [pdfPage, setPdfPage] = useState<number>(1)
   const [pdfZoom, setPdfZoom] = useState<number>(100)
@@ -117,7 +114,10 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
   // Escuta evento fullscreenchange para atualizar estado
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement))
+      setIsNativeFullscreen(Boolean(document.fullscreenElement))
+      if (!document.fullscreenElement) {
+        setIsCssFullscreen(false)
+      }
     }
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => {
@@ -140,15 +140,30 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
   const embedUrl = formatSlideEmbedUrl(currentUrl, provider, pdfPage, pdfZoom)
 
   const toggleFullscreen = async () => {
+    if (isFullscreen) {
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen()
+        } catch {
+          // ignore
+        }
+      }
+      setIsCssFullscreen(false)
+      setIsNativeFullscreen(false)
+      return
+    }
+
     if (!containerRef.current) return
     try {
-      if (!document.fullscreenElement) {
+      if (containerRef.current.requestFullscreen) {
         await containerRef.current.requestFullscreen()
+      } else if ((containerRef.current as any).webkitRequestFullscreen) {
+        await (containerRef.current as any).webkitRequestFullscreen()
       } else {
-        await document.exitFullscreen()
+        setIsCssFullscreen(true)
       }
-    } catch (err) {
-      console.warn('Erro ao alternar fullscreen:', err)
+    } catch {
+      setIsCssFullscreen(true)
     }
   }
 
@@ -245,18 +260,18 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md shadow-[#C59E5D]/25 transition-all transform active:scale-95 cursor-pointer"
-            title={isFullscreen ? 'Sair da tela cheia' : 'Apresentar em tela cheia (16:9)'}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md shadow-[#C59E5D]/25 transition-all transform active:scale-95 cursor-pointer"
+            title={isFullscreen ? 'Sair da tela cheia' : 'Abrir Apresentação em Tela Cheia'}
           >
             {isFullscreen ? (
               <>
                 <Minimize2 className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span className="hidden sm:inline">Sair Tela Cheia</span>
+                <span>Sair da Tela Cheia</span>
               </>
             ) : (
               <>
                 <Maximize2 className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span className="hidden sm:inline">Tela Cheia</span>
+                <span>Abrir Apresentação em Tela Cheia</span>
               </>
             )}
           </button>
@@ -265,12 +280,23 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
 
       {/* Área Central: Player 16:9 */}
       <div className={`relative w-full bg-slate-950 flex-1 flex items-center justify-center ${isFullscreen ? 'h-full' : 'aspect-video'}`}>
+        {!isFullscreen && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="sm:hidden absolute top-3 right-3 z-20 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0F1B2F]/90 text-[#FAF8F2] text-[11px] font-bold border border-[#C59E5D]/60 shadow-lg backdrop-blur-sm active:scale-95 cursor-pointer"
+            title="Abrir Apresentação em Tela Cheia"
+          >
+            <Maximize2 className="w-3 h-3 text-[#C59E5D]" />
+            <span>Tela Cheia</span>
+          </button>
+        )}
         <iframe
           key={`${embedUrl}-${pdfPage}-${pdfZoom}`}
           src={embedUrl}
           className="w-full h-full border-0"
           title={lessonTitle}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+          allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
       </div>
