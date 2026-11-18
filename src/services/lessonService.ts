@@ -4,6 +4,49 @@ import { supabase } from '../lib/supabase'
 const STORAGE_KEY_LESSONS = 'ava_supabase_lessons'
 const USEFUL_LINKS_MARKER_START = '<!-- USEFUL_LINKS_JSON:'
 const USEFUL_LINKS_MARKER_END = '-->'
+const SLIDES_MARKER_START = '<!-- SLIDES_JSON:'
+const SLIDES_MARKER_END = '-->'
+
+export interface LessonSlidesConfig {
+  slides_url?: string
+  slides_url_pt?: string
+  slides_url_en?: string
+  slides_url_es?: string
+}
+
+export function extractSlidesFromContent(content: string): { slides: LessonSlidesConfig; cleanContent: string } {
+  if (!content) return { slides: {}, cleanContent: '' }
+  const startIdx = content.indexOf(SLIDES_MARKER_START)
+  if (startIdx === -1) return { slides: {}, cleanContent: content }
+  const endIdx = content.indexOf(SLIDES_MARKER_END, startIdx)
+  if (endIdx === -1) return { slides: {}, cleanContent: content }
+
+  const jsonStr = content.substring(startIdx + SLIDES_MARKER_START.length, endIdx).trim()
+  const cleanContent = (content.substring(0, startIdx) + content.substring(endIdx + SLIDES_MARKER_END.length)).trim()
+  try {
+    const parsed = JSON.parse(jsonStr)
+    if (parsed && typeof parsed === 'object') {
+      return { slides: parsed, cleanContent }
+    }
+  } catch (e) {
+    console.warn('Erro ao decodificar slides do content:', e)
+  }
+  return { slides: {}, cleanContent }
+}
+
+export function embedSlidesInContent(content: string, slides?: LessonSlidesConfig): string {
+  const { cleanContent } = extractSlidesFromContent(content || '')
+  if (!slides || (!slides.slides_url && !slides.slides_url_pt && !slides.slides_url_en && !slides.slides_url_es)) {
+    return cleanContent
+  }
+  const jsonStr = JSON.stringify({
+    slides_url: slides.slides_url || slides.slides_url_pt || '',
+    slides_url_pt: slides.slides_url_pt || slides.slides_url || '',
+    slides_url_en: slides.slides_url_en || '',
+    slides_url_es: slides.slides_url_es || '',
+  })
+  return `${cleanContent}\n\n${SLIDES_MARKER_START}${jsonStr}${SLIDES_MARKER_END}`
+}
 
 export function extractUsefulLinksFromContent(content: string): { links: UsefulLink[]; cleanContent: string } {
   if (!content) return { links: [], cleanContent: '' }
@@ -61,6 +104,10 @@ export interface CreateLessonDTO {
   pdf_url?: string
   pdf_name?: string
   useful_links?: UsefulLink[]
+  slides_url?: string
+  slides_url_pt?: string
+  slides_url_en?: string
+  slides_url_es?: string
 }
 
 class SupabaseLessonService {
@@ -124,13 +171,39 @@ class SupabaseLessonService {
             String(item.youtube_url || item.video_url || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
           const youtubeId = extractYouTubeId(videoUrl) || undefined
           const rawContent = String(item.content || item.content_text || '')
-          const { links: extractedLinks, cleanContent } = extractUsefulLinksFromContent(rawContent)
+          const { links: extractedLinks, cleanContent: contentWithoutLinks } = extractUsefulLinksFromContent(rawContent)
+          const { slides: extractedSlides, cleanContent } = extractSlidesFromContent(contentWithoutLinks)
           const cachedMatch = cached.find((c) => c.id === item.id)
           const usefulLinks: UsefulLink[] = Array.isArray(item.useful_links)
             ? (item.useful_links as UsefulLink[])
             : extractedLinks.length > 0
               ? extractedLinks
               : (cachedMatch?.useful_links || [])
+
+          const slidesUrl =
+            (item.slides_url as string) ||
+            (item.slides_url_pt as string) ||
+            extractedSlides.slides_url ||
+            cachedMatch?.slides_url ||
+            undefined
+
+          const slidesUrlPt =
+            (item.slides_url_pt as string) ||
+            extractedSlides.slides_url_pt ||
+            slidesUrl ||
+            undefined
+
+          const slidesUrlEn =
+            (item.slides_url_en as string) ||
+            extractedSlides.slides_url_en ||
+            cachedMatch?.slides_url_en ||
+            undefined
+
+          const slidesUrlEs =
+            (item.slides_url_es as string) ||
+            extractedSlides.slides_url_es ||
+            cachedMatch?.slides_url_es ||
+            undefined
 
           return {
             id: String(item.id || `les-supa-${idx}`),
@@ -146,6 +219,10 @@ class SupabaseLessonService {
             pdf_url: item.pdf_url ? String(item.pdf_url) : undefined,
             pdf_name: item.pdf_name ? String(item.pdf_name) : undefined,
             useful_links: usefulLinks,
+            slides_url: slidesUrl,
+            slides_url_pt: slidesUrlPt,
+            slides_url_en: slidesUrlEn,
+            slides_url_es: slidesUrlEs,
             created_at: String(item.created_at || new Date().toISOString()),
           }
         })
@@ -239,11 +316,82 @@ class SupabaseLessonService {
   }
 
   /**
+   * Faz upload de arquivo de apresentação (.pptx, .ppsx ou .pdf) para o Supabase Storage no bucket 'lesson-materials'
+   */
+  async uploadLessonSlides(file: File): Promise<{
+    url: string
+    name: string
+    error?: string
+  }> {
+    const fileExt = file.name.split('.').pop() || 'pptx'
+    const cleanBaseName = file.name
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 40)
+    const fileName = `slides_${Date.now()}_${cleanBaseName}.${fileExt}`
+    const filePath = `slides/${fileName}`
+
+    try {
+      let contentType = 'application/octet-stream'
+      const lower = file.name.toLowerCase()
+      if (lower.endsWith('.pdf')) {
+        contentType = 'application/pdf'
+      } else if (lower.endsWith('.pptx')) {
+        contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      } else if (lower.endsWith('.ppt') || lower.endsWith('.ppsx')) {
+        contentType = 'application/vnd.ms-powerpoint'
+      }
+
+      const { error } = await supabase.storage
+        .from('lesson-materials')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType,
+        })
+
+      if (error) {
+        console.warn('Aviso Supabase Storage ao enviar slides:', error)
+        const fallbackUrl = URL.createObjectURL(file)
+        return {
+          url: fallbackUrl,
+          name: file.name,
+          error: error.message,
+        }
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('lesson-materials')
+        .getPublicUrl(filePath)
+
+      return {
+        url: publicUrlData.publicUrl,
+        name: file.name,
+      }
+    } catch (err) {
+      console.error('Falha no upload de slides para o Supabase Storage:', err)
+      const fallbackUrl = URL.createObjectURL(file)
+      return {
+        url: fallbackUrl,
+        name: file.name,
+        error: err instanceof Error ? err.message : 'Falha no upload',
+      }
+    }
+  }
+
+  /**
    * Executa INSERT real na tabela lessons do Supabase
    */
   async createLesson(dto: CreateLessonDTO): Promise<SupabaseLesson> {
     const youtubeId = extractYouTubeId(dto.video_url) || undefined
     const contentWithLinks = embedUsefulLinksInContent(dto.content_text, dto.useful_links)
+    const contentWithAll = embedSlidesInContent(contentWithLinks, {
+      slides_url: dto.slides_url || dto.slides_url_pt,
+      slides_url_pt: dto.slides_url_pt || dto.slides_url,
+      slides_url_en: dto.slides_url_en,
+      slides_url_es: dto.slides_url_es,
+    })
+
     const newLesson: SupabaseLesson = {
       id: `les-${Date.now().toString(36)}`,
       course_id: dto.course_id,
@@ -258,15 +406,19 @@ class SupabaseLessonService {
       pdf_url: dto.pdf_url,
       pdf_name: dto.pdf_name,
       useful_links: dto.useful_links || [],
+      slides_url: dto.slides_url || dto.slides_url_pt,
+      slides_url_pt: dto.slides_url_pt || dto.slides_url,
+      slides_url_en: dto.slides_url_en,
+      slides_url_es: dto.slides_url_es,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
     try {
-      // Tenta gravar com a coluna useful_links; se não existir, grava dentro do content estruturado
+      // Tenta gravar com todas as colunas; se não existirem, grava dentro do content estruturado
       const insertPayload: Record<string, unknown> = {
         title: dto.title.trim(),
-        content: contentWithLinks,
+        content: contentWithAll,
         youtube_url: dto.video_url.trim(),
         sequence_order: dto.sequence_order,
         discipline_id: dto.discipline_id || 'disc-03',
@@ -282,12 +434,36 @@ class SupabaseLessonService {
       if (dto.useful_links && dto.useful_links.length > 0) {
         insertPayload.useful_links = dto.useful_links
       }
+      if (dto.slides_url || dto.slides_url_pt) {
+        insertPayload.slides_url = dto.slides_url || dto.slides_url_pt
+        insertPayload.slides_url_pt = dto.slides_url_pt || dto.slides_url
+      }
+      if (dto.slides_url_en) {
+        insertPayload.slides_url_en = dto.slides_url_en
+      }
+      if (dto.slides_url_es) {
+        insertPayload.slides_url_es = dto.slides_url_es
+      }
 
       let { data, error } = await supabase
         .from('lessons')
         .insert([insertPayload])
         .select()
         .single()
+
+      if (error && (error.code === '42703' || error.message?.includes('slides_url'))) {
+        delete insertPayload.slides_url
+        delete insertPayload.slides_url_pt
+        delete insertPayload.slides_url_en
+        delete insertPayload.slides_url_es
+        const retry = await supabase
+          .from('lessons')
+          .insert([insertPayload])
+          .select()
+          .single()
+        data = retry.data
+        error = retry.error
+      }
 
       if (error && (error.code === '42703' || error.message?.includes('useful_links'))) {
         delete insertPayload.useful_links
@@ -340,11 +516,24 @@ class SupabaseLessonService {
     const effectiveLinks =
       dto.useful_links !== undefined ? dto.useful_links : existing?.useful_links || []
     const contentWithLinks = embedUsefulLinksInContent(effectiveContent, effectiveLinks)
+    const contentWithAll = embedSlidesInContent(contentWithLinks, {
+      slides_url: dto.slides_url !== undefined ? dto.slides_url : existing?.slides_url,
+      slides_url_pt: dto.slides_url_pt !== undefined ? dto.slides_url_pt : existing?.slides_url_pt,
+      slides_url_en: dto.slides_url_en !== undefined ? dto.slides_url_en : existing?.slides_url_en,
+      slides_url_es: dto.slides_url_es !== undefined ? dto.slides_url_es : existing?.slides_url_es,
+    })
 
     const updatePayload: Record<string, unknown> = {}
     if (dto.title !== undefined) updatePayload.title = dto.title.trim()
-    if (dto.content_text !== undefined || dto.useful_links !== undefined) {
-      updatePayload.content = contentWithLinks
+    if (
+      dto.content_text !== undefined ||
+      dto.useful_links !== undefined ||
+      dto.slides_url !== undefined ||
+      dto.slides_url_pt !== undefined ||
+      dto.slides_url_en !== undefined ||
+      dto.slides_url_es !== undefined
+    ) {
+      updatePayload.content = contentWithAll
     }
     if (dto.video_url !== undefined) updatePayload.youtube_url = dto.video_url.trim()
     if (dto.sequence_order !== undefined) updatePayload.sequence_order = dto.sequence_order
@@ -356,12 +545,34 @@ class SupabaseLessonService {
     if (dto.useful_links !== undefined) {
       updatePayload.useful_links = dto.useful_links
     }
+    if (dto.slides_url !== undefined || dto.slides_url_pt !== undefined) {
+      updatePayload.slides_url = dto.slides_url || dto.slides_url_pt || null
+      updatePayload.slides_url_pt = dto.slides_url_pt || dto.slides_url || null
+    }
+    if (dto.slides_url_en !== undefined) {
+      updatePayload.slides_url_en = dto.slides_url_en || null
+    }
+    if (dto.slides_url_es !== undefined) {
+      updatePayload.slides_url_es = dto.slides_url_es || null
+    }
 
     try {
       let { error } = await supabase
         .from('lessons')
         .update(updatePayload)
         .eq('id', id)
+
+      if (error && (error.code === '42703' || error.message?.includes('slides_url'))) {
+        delete updatePayload.slides_url
+        delete updatePayload.slides_url_pt
+        delete updatePayload.slides_url_en
+        delete updatePayload.slides_url_es
+        const retry = await supabase
+          .from('lessons')
+          .update(updatePayload)
+          .eq('id', id)
+        error = retry.error
+      }
 
       if (error && (error.code === '42703' || error.message?.includes('useful_links')) && updatePayload.useful_links !== undefined) {
         delete updatePayload.useful_links
@@ -403,6 +614,10 @@ class SupabaseLessonService {
         ...list[index],
         ...dto,
         useful_links: effectiveLinks,
+        slides_url: dto.slides_url !== undefined ? dto.slides_url : existing?.slides_url,
+        slides_url_pt: dto.slides_url_pt !== undefined ? dto.slides_url_pt : existing?.slides_url_pt,
+        slides_url_en: dto.slides_url_en !== undefined ? dto.slides_url_en : existing?.slides_url_en,
+        slides_url_es: dto.slides_url_es !== undefined ? dto.slides_url_es : existing?.slides_url_es,
         video_youtube_id: youtubeId,
         updated_at: new Date().toISOString(),
       }
@@ -422,6 +637,10 @@ class SupabaseLessonService {
         pdf_url: dto.pdf_url ?? existing?.pdf_url,
         pdf_name: dto.pdf_name ?? existing?.pdf_name,
         useful_links: effectiveLinks,
+        slides_url: dto.slides_url || dto.slides_url_pt || existing?.slides_url,
+        slides_url_pt: dto.slides_url_pt || dto.slides_url || existing?.slides_url_pt,
+        slides_url_en: dto.slides_url_en || existing?.slides_url_en,
+        slides_url_es: dto.slides_url_es || existing?.slides_url_es,
         created_at: existing?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }

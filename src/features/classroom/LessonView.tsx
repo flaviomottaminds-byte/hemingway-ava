@@ -12,12 +12,15 @@ import {
   Award,
   Pencil,
   Link2,
+  Presentation,
+  Play,
 } from 'lucide-react'
 import type { Lesson, SupabaseLesson, UserProfile, UsefulLink } from '../../types'
 import type { SupportedLanguageCode } from '../../locales/i18n'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
 import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
 import { LessonEditModal } from '../teacher/components/LessonEditModal'
+import { SlideViewer } from './components/SlideViewer'
 
 interface LessonViewProps {
   lesson: Lesson
@@ -33,7 +36,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
       lesson.materials?.some((m) => m.type === 'pdf' && m.url && m.url !== '#'),
   )
   const [activeTab, setActiveTab] = useState<
-    'transcription' | 'overview' | 'resources' | 'useful_links' | 'notes'
+    'transcription' | 'overview' | 'resources' | 'useful_links' | 'notes' | 'slides'
   >(initialHasPdf ? 'overview' : 'transcription')
   const [isCompleted, setIsCompleted] = useState(lesson.isCompleted)
   const [userNote, setUserNote] = useState('')
@@ -91,6 +94,30 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
     lesson.pdf_name ||
     lesson.materials.find((m) => m.type === 'pdf')?.title ||
     'Material-Oficial-Aula.pdf'
+
+  // Apresentação de Slides oficial da aula (Gamma, Canva, Google Slides, PPTX ou PDF)
+  const slidesUrl =
+    supabaseLesson?.slides_url ||
+    lesson.slides_url ||
+    lesson.materials?.find((m) => m.type === 'slides' && m.url && m.url !== '#')?.url ||
+    null
+  const slidesUrlPt = supabaseLesson?.slides_url_pt || lesson.slides_url_pt || slidesUrl || null
+  const slidesUrlEn = supabaseLesson?.slides_url_en || lesson.slides_url_en || null
+  const slidesUrlEs = supabaseLesson?.slides_url_es || lesson.slides_url_es || null
+  const hasSlides = Boolean(slidesUrl || slidesUrlPt || slidesUrlEn || slidesUrlEs)
+
+  // Formato ativo de estudo do aluno: 'video' | 'slides' | 'pdf'
+  const [activeMediaView, setActiveMediaView] = useState<'video' | 'slides' | 'pdf'>('video')
+
+  useEffect(() => {
+    if (hasVideo) {
+      setActiveMediaView('video')
+    } else if (hasSlides) {
+      setActiveMediaView('slides')
+    } else if (pdfUrl) {
+      setActiveMediaView('pdf')
+    }
+  }, [hasVideo, hasSlides, pdfUrl])
 
   // Links Úteis e Materiais Complementares da aula
   const usefulLinks: UsefulLink[] =
@@ -192,8 +219,64 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </div>
       </div>
 
-      {/* 1. Player de Vídeo do YouTube (Exibido acima se houver vídeo) */}
-      {hasVideo && youtubeId && (
+      {/* Seletor de Formato de Estudo da Aula (Vídeo, Slides, Apostila PDF) */}
+      {(Number(Boolean(hasVideo && youtubeId)) + Number(Boolean(hasSlides)) + Number(Boolean(pdfUrl)) > 1) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-[#FAF8F2] border-2 border-[#C59E5D]/40 rounded-2xl shadow-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase text-[#0F1B2F] px-2.5 py-1 bg-[#C59E5D]/20 rounded-lg">
+              Formato de Estudo:
+            </span>
+            {hasVideo && youtubeId && (
+              <button
+                type="button"
+                onClick={() => setActiveMediaView('video')}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeMediaView === 'video'
+                    ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
+              >
+                <Play className="w-3.5 h-3.5 text-[#C59E5D]" />
+                <span>Vídeo da Aula</span>
+              </button>
+            )}
+            {hasSlides && (
+              <button
+                type="button"
+                onClick={() => setActiveMediaView('slides')}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeMediaView === 'slides'
+                    ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
+              >
+                <Presentation className="w-3.5 h-3.5 text-[#C59E5D]" />
+                <span>Apresentação de Slides</span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
+                  Novo
+                </span>
+              </button>
+            )}
+            {pdfUrl && (
+              <button
+                type="button"
+                onClick={() => setActiveMediaView('pdf')}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeMediaView === 'pdf'
+                    ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 text-[#C59E5D]" />
+                <span>Material / Apostila em PDF</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 1. Player de Vídeo do YouTube */}
+      {activeMediaView === 'video' && hasVideo && youtubeId && (
         <div className="relative aspect-video w-full rounded-3xl bg-slate-950 overflow-hidden shadow-2xl border-2 border-[#0F1B2F] flex items-center justify-center">
           <iframe
             className="w-full h-full border-0 rounded-3xl"
@@ -205,8 +288,20 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </div>
       )}
 
-      {/* 2. Visualizador Nativo do Material em PDF (Protagonista da Aula / Diagramação Original) */}
-      {pdfUrl && (
+      {/* 2. Player Inteligente de Apresentação de Slides */}
+      {activeMediaView === 'slides' && hasSlides && (
+        <SlideViewer
+          slidesUrl={slidesUrl || undefined}
+          slidesUrlPt={slidesUrlPt || undefined}
+          slidesUrlEn={slidesUrlEn || undefined}
+          slidesUrlEs={slidesUrlEs || undefined}
+          preferredLanguage={currentLang as 'pt' | 'en' | 'es'}
+          lessonTitle={currentTitle}
+        />
+      )}
+
+      {/* 3. Visualizador Nativo do Material em PDF (Protagonista da Aula / Diagramação Original) */}
+      {activeMediaView === 'pdf' && pdfUrl && (
         <div className="rounded-3xl overflow-hidden border-2 border-[#0F1B2F] bg-white shadow-2xl ring-2 ring-[#C59E5D]/40 transition-all">
           {/* Barra de Ferramentas Superior do PDF */}
           <div className="bg-[#0F1B2F] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-[#C59E5D]/50">
@@ -266,12 +361,12 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </div>
       )}
 
-      {/* Caso não haja vídeo nem PDF cadastrados */}
-      {!hasVideo && !pdfUrl && (
+      {/* Caso não haja vídeo, slides nem PDF cadastrados */}
+      {!hasVideo && !hasSlides && !pdfUrl && (
         <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
           <FileText className="w-12 h-12 text-slate-400 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-800">Nenhum material de aula anexado</h3>
-          <p className="text-xs text-slate-500 mt-1">O professor ou administrador ainda não realizou o upload do PDF desta aula.</p>
+          <p className="text-xs text-slate-500 mt-1">O professor ou administrador ainda não realizou o upload de vídeo, slides ou PDF desta aula.</p>
         </div>
       )}
 
@@ -333,6 +428,20 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
           >
             {t('classroom.tabs.overview')}
           </button>
+          {hasSlides && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('slides')}
+              className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'slides'
+                  ? 'border-[#C59E5D] text-[#0F1B2F] bg-[#FAF8F2] font-bold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Presentation className="w-4 h-4 text-[#C59E5D]" />
+              <span>Apresentação de Slides</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab('useful_links')}
@@ -413,6 +522,20 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
+            </div>
+          )}
+
+          {/* Aba de Apresentação de Slides */}
+          {hasSlides && activeTab === 'slides' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <SlideViewer
+                slidesUrl={slidesUrl || undefined}
+                slidesUrlPt={slidesUrlPt || undefined}
+                slidesUrlEn={slidesUrlEn || undefined}
+                slidesUrlEs={slidesUrlEs || undefined}
+                preferredLanguage={currentLang as 'pt' | 'en' | 'es'}
+                lessonTitle={currentTitle}
+              />
             </div>
           )}
 

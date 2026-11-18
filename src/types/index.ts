@@ -143,6 +143,10 @@ export interface SupabaseLesson {
   pdf_url?: string
   pdf_name?: string
   useful_links?: UsefulLink[]
+  slides_url?: string
+  slides_url_pt?: string
+  slides_url_en?: string
+  slides_url_es?: string
   created_at: string
   updated_at?: string
 }
@@ -203,7 +207,7 @@ export interface LessonMaterial {
   id: string
   title: string
   size: string
-  type: 'pdf' | 'doc' | 'link'
+  type: 'pdf' | 'doc' | 'link' | 'slides'
   url: string
 }
 
@@ -224,6 +228,10 @@ export interface Lesson {
   pdf_url?: string
   pdf_name?: string
   useful_links?: UsefulLink[]
+  slides_url?: string
+  slides_url_pt?: string
+  slides_url_en?: string
+  slides_url_es?: string
 }
 
 export interface Course {

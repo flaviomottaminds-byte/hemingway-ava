@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Link2,
   Plus,
+  Presentation,
 } from 'lucide-react'
 import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline, UsefulLink } from '../../../types'
 import { lessonService, extractYouTubeId } from '../../../services/lessonService'
@@ -65,6 +66,14 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   const [isPdfDragging, setIsPdfDragging] = useState(false)
   const pdfInputRef = useRef<HTMLInputElement>(null)
 
+  // Gestão de Apresentação de Slides (PT / EN / ES)
+  const [slidesUrlPt, setSlidesUrlPt] = useState<string>('')
+  const [slidesUrlEn, setSlidesUrlEn] = useState<string>('')
+  const [slidesUrlEs, setSlidesUrlEs] = useState<string>('')
+  const [activeSlideLangTab, setActiveSlideLangTab] = useState<'pt' | 'en' | 'es'>('pt')
+  const [isUploadingSlides, setIsUploadingSlides] = useState(false)
+  const slidesFileInputRef = useRef<HTMLInputElement>(null)
+
   // Estado de submissão e feedback
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -94,6 +103,9 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setContentText(lesson.content_text || '')
       setPdfUrl(lesson.pdf_url || '')
       setPdfName(lesson.pdf_name || '')
+      setSlidesUrlPt(lesson.slides_url_pt || lesson.slides_url || '')
+      setSlidesUrlEn(lesson.slides_url_en || '')
+      setSlidesUrlEs(lesson.slides_url_es || '')
       setUsefulLinks(
         lesson.useful_links && Array.isArray(lesson.useful_links)
           ? JSON.parse(JSON.stringify(lesson.useful_links))
@@ -111,6 +123,9 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setContentText('')
       setPdfUrl('')
       setPdfName('')
+      setSlidesUrlPt('')
+      setSlidesUrlEn('')
+      setSlidesUrlEs('')
       setUsefulLinks([])
       setErrorMessage(null)
       setSuccessMessage(null)
@@ -198,6 +213,37 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
     setPdfName('')
   }
 
+  // Upload de Apresentação de Slides (.pptx ou .pdf)
+  const handleSlidesFileUpload = async (file: File) => {
+    if (!file) return
+    const lower = file.name.toLowerCase()
+    const valid = lower.endsWith('.pptx') || lower.endsWith('.ppsx') || lower.endsWith('.ppt') || lower.endsWith('.pdf')
+    if (!valid) {
+      setErrorMessage('Formato de arquivo inválido. Por favor, envie uma apresentação em .pptx, .ppsx ou .pdf.')
+      return
+    }
+
+    setIsUploadingSlides(true)
+    setErrorMessage(null)
+    try {
+      const res = await lessonService.uploadLessonSlides(file)
+      if (res.url) {
+        if (activeSlideLangTab === 'pt') {
+          setSlidesUrlPt(res.url)
+        } else if (activeSlideLangTab === 'en') {
+          setSlidesUrlEn(res.url)
+        } else if (activeSlideLangTab === 'es') {
+          setSlidesUrlEs(res.url)
+        }
+      }
+    } catch (err) {
+      console.error('Erro no upload de slides:', err)
+      setErrorMessage('Falha ao enviar arquivo de apresentação para o Supabase Storage.')
+    } finally {
+      setIsUploadingSlides(false)
+    }
+  }
+
   // Validação e Submissão com UPDATE real no Supabase
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -222,6 +268,10 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         pdf_url: pdfUrl || undefined,
         pdf_name: pdfName || undefined,
         useful_links: usefulLinks.filter((l) => l.title.trim() && l.url.trim()),
+        slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
+        slides_url_pt: slidesUrlPt || undefined,
+        slides_url_en: slidesUrlEn || undefined,
+        slides_url_es: slidesUrlEs || undefined,
       }
 
       let saved: SupabaseLesson
@@ -527,6 +577,144 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                 )}
               </div>
             )}
+          </div>
+
+          {/* 4.5. Apresentação de Slides (PT / EN / ES) — Suporte a Gamma, Canva, Google Slides, PPTX, PDF */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-3.5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#C59E5D]/20 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#0F1B2F] text-[#C59E5D] shrink-0">
+                  <Presentation className="w-5 h-5 text-[#C59E5D]" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#0F1B2F] uppercase tracking-wide flex items-center gap-2">
+                    <span>Apresentação de Slides</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C59E5D] text-[#0F1B2F]">
+                      PT / EN / ES
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Insira link externo (Gamma.app, Canva, Google Slides) ou faça upload de arquivo (.pdf ou .pptx)
+                  </p>
+                </div>
+              </div>
+
+              {/* Seletor de Idioma da Apresentação */}
+              <div className="flex items-center p-1 bg-white rounded-xl border border-slate-200 shadow-2xs self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveSlideLangTab('pt')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeSlideLangTab === 'pt'
+                      ? 'bg-[#0F1B2F] text-[#C59E5D] shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  PT {slidesUrlPt ? '✓' : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSlideLangTab('en')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeSlideLangTab === 'en'
+                      ? 'bg-[#0F1B2F] text-[#C59E5D] shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  EN {slidesUrlEn ? '✓' : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSlideLangTab('es')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeSlideLangTab === 'es'
+                      ? 'bg-[#0F1B2F] text-[#C59E5D] shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ES {slidesUrlEs ? '✓' : ''}
+                </button>
+              </div>
+            </div>
+
+            {/* Input para Colar Link Externo ou URL Gerada */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                Link da Apresentação em {activeSlideLangTab.toUpperCase()}:
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="url"
+                    value={
+                      activeSlideLangTab === 'pt'
+                        ? slidesUrlPt
+                        : activeSlideLangTab === 'en'
+                          ? slidesUrlEn
+                          : slidesUrlEs
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (activeSlideLangTab === 'pt') setSlidesUrlPt(val)
+                      else if (activeSlideLangTab === 'en') setSlidesUrlEn(val)
+                      else if (activeSlideLangTab === 'es') setSlidesUrlEs(val)
+                    }}
+                    placeholder="Cole a URL do Gamma.app, Canva, Google Slides ou link público de .pptx/.pdf"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D]"
+                  />
+                  {(activeSlideLangTab === 'pt' ? slidesUrlPt : activeSlideLangTab === 'en' ? slidesUrlEn : slidesUrlEs) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeSlideLangTab === 'pt') setSlidesUrlPt('')
+                        else if (activeSlideLangTab === 'en') setSlidesUrlEn('')
+                        else if (activeSlideLangTab === 'es') setSlidesUrlEs('')
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 p-1"
+                      title="Limpar link"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Botão de Upload (.pdf ou .pptx) */}
+                <input
+                  ref={slidesFileInputRef}
+                  type="file"
+                  accept=".pptx,.ppsx,.ppt,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleSlidesFileUpload(e.target.files[0])
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => slidesFileInputRef.current?.click()}
+                  disabled={isUploadingSlides}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] text-xs font-bold rounded-xl border border-[#C59E5D]/40 transition shadow-xs cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Enviar arquivo de slides para o Supabase Storage"
+                >
+                  {isUploadingSlides ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-[#C59E5D]" />
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-4 h-4 text-[#C59E5D]" />
+                      <span>Upload (.pdf / .pptx)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
+                <span className="font-semibold text-slate-700">Dica:</span>
+                <span>Aceita links de compartilhamento do Gamma, Canva, Google Slides ou upload direto de arquivos PowerPoint (.pptx) e PDF.</span>
+              </p>
+            </div>
           </div>
 
           {/* 5. Conteúdo / Texto da Aula (Totalmente editável e confortável) */}
