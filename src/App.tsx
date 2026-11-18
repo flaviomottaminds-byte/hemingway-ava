@@ -645,11 +645,11 @@ export function App() {
               initialCourseId={selectedCurriculumCourseId}
               onCancel={() => {
                 setEditingAssessmentId(null)
-                setActiveView('teacher-courses')
               }}
-              onSaveSuccess={() => {
-                setEditingAssessmentId(null)
-                setActiveView('teacher-courses')
+              onSaveSuccess={(saved) => {
+                if (saved?.id) {
+                  setEditingAssessmentId(saved.id)
+                }
               }}
             />
           )}

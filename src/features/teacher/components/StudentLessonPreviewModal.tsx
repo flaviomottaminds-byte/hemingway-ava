@@ -69,91 +69,6 @@ export interface StudentLessonPreviewModalProps {
   disciplineName?: string
 }
 
-const DEFAULT_DEMO_QUESTIONS: AssessmentQuestion[] = [
-  {
-    id: 'demo-q1',
-    sequence_order: 1,
-    statement:
-      'Com base nos conteúdos e orientações apresentados nesta aula, qual é a principal diretriz a ser aplicada na prática profissional?',
-    points: 5,
-    feedback:
-      'Gabarito Comentado Hemingway School: A alternativa B reflete a conformidade regulatória e a aplicação exata dos conceitos tributários e trabalhistas norte-americanos discutidos no material desta aula.',
-    options: [
-      {
-        id: 'demo-opt-1-a',
-        option_letter: 'A',
-        text: 'Ignorar as obrigações formais quando a remuneração for inferior ao piso estadual.',
-        is_correct: false,
-      },
-      {
-        id: 'demo-opt-1-b',
-        option_letter: 'B',
-        text: 'Manter a documentação fiscal e relatórios de horas estritamente alinhados às diretrizes oficiais do IRS e do Department of Labor.',
-        is_correct: true,
-      },
-      {
-        id: 'demo-opt-1-c',
-        option_letter: 'C',
-        text: 'Transferir a responsabilidade fiscal integral ao contratante sem verificação prévia dos formulários emitidos.',
-        is_correct: false,
-      },
-      {
-        id: 'demo-opt-1-d',
-        option_letter: 'D',
-        text: 'Dispensar a retenção dos impostos FICA em contratos temporários de prestação de serviço.',
-        is_correct: false,
-      },
-      {
-        id: 'demo-opt-1-e',
-        option_letter: 'E',
-        text: 'Submeter declarações fiscais apenas após decorridos dois anos de atividade contínua.',
-        is_correct: false,
-      },
-    ],
-  },
-  {
-    id: 'demo-q2',
-    sequence_order: 2,
-    statement:
-      'Segundo as normas fundamentais do padrão corporativo norte-americano, como deve ser calculada a remuneração de horas extras (Overtime)?',
-    points: 5,
-    feedback:
-      'Gabarito Comentado Hemingway School: Conforme a FLSA, qualquer hora trabalhada além de 40 horas na semana laboral deve ser remunerada com no mínimo 1.5x o valor da hora normal (Time and a Half).',
-    options: [
-      {
-        id: 'demo-opt-2-a',
-        option_letter: 'A',
-        text: 'Mesmo valor da hora regular sem nenhum adicional legal.',
-        is_correct: false,
-      },
-      {
-        id: 'demo-opt-2-b',
-        option_letter: 'B',
-        text: 'Adicional de 10% sobre o total semanal acumulado.',
-        is_correct: false,
-      },
-      {
-        id: 'demo-opt-2-c',
-        option_letter: 'C',
-        text: 'No mínimo 1.5 vezes a taxa horária regular (Time and a Half) para horas que excederem 40 semanais.',
-        is_correct: true,
-      },
-      {
-        id: 'demo-opt-2-d',
-        option_letter: 'D',
-        text: 'Exclusivamente por meio de folgas compensatórias no trimestre seguinte.',
-        is_correct: false,
-      },
-      {
-        id: 'demo-opt-2-e',
-        option_letter: 'E',
-        text: 'Apenas quando expressamente autorizado por acordo sindical internacional.',
-        is_correct: false,
-      },
-    ],
-  },
-]
-
 export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps> = ({
   isOpen,
   onClose,
@@ -199,7 +114,8 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
 
   // Todos os Hooks no topo (NUNCA após um return condicional)
   const [previewLang, setPreviewLang] = useState<'pt' | 'en' | 'es'>('pt')
-  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>(DEFAULT_DEMO_QUESTIONS)
+  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>([])
+  const [quizTitle, setQuizTitle] = useState<string>('Quiz Interativo da Aula (AVA)')
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
   const [revealedFeedbacks, setRevealedFeedbacks] = useState<Record<string, boolean>>({})
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false)
@@ -237,28 +153,28 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
     }
   }, [isOpen])
 
-  // Carrega questões do simulado associadas à aula ou disciplina
+  // Carrega questões reais da avaliação associadas à aula ou disciplina no Supabase
   useEffect(() => {
     if (!isOpen || !lesson) return
 
     setIsLoadingQuiz(true)
     assessmentService
-      .getAssessments({ course_id: courseId || undefined, discipline_id: disciplineId || undefined })
-      .then((assessments) => {
-        const list = Array.isArray(assessments) ? assessments : []
-        let found = lessonId ? list.find((a) => a && a.lesson_id && a.lesson_id === lessonId) : undefined
-        if (!found && list.length > 0) {
-          found = list[0]
-        }
-
+      .getAssessmentForLesson({
+        lesson_id: lessonId,
+        discipline_id: disciplineId || undefined,
+        course_id: courseId || undefined,
+      })
+      .then((found) => {
         if (found && Array.isArray(found.questions) && found.questions.length > 0) {
           setQuizQuestions(found.questions)
+          setQuizTitle(found.title || 'Quiz Interativo da Aula (AVA)')
         } else {
-          setQuizQuestions(DEFAULT_DEMO_QUESTIONS)
+          setQuizQuestions([])
+          setQuizTitle('Quiz Interativo da Aula (AVA)')
         }
       })
       .catch(() => {
-        setQuizQuestions(DEFAULT_DEMO_QUESTIONS)
+        setQuizQuestions([])
       })
       .finally(() => {
         setIsLoadingQuiz(false)
@@ -924,35 +840,34 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
                 <div className="p-8 text-center text-sm font-semibold text-slate-500 bg-white rounded-3xl border border-slate-200">
                   Carregando simulado e questões da aula...
                 </div>
-              ) : (
-                quizQuestions.length > 0 && (
-                  <div className="space-y-5">
-                    <div className="p-5 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
-                          <Award className="w-6 h-6 text-[#C59E5D]" />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-extrabold text-[#0F1B2F]">
-                            Quiz Interativo da Aula (AVA)
-                          </h3>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Teste as 5 alternativas (A a E) e verifique o gabarito comentado com a justificativa pedagógica.
-                          </p>
-                        </div>
+              ) : quizQuestions.length > 0 ? (
+                <div className="space-y-5">
+                  <div className="p-5 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
+                        <Award className="w-6 h-6 text-[#C59E5D]" />
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleResetQuiz}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Reiniciar Respostas</span>
-                        </button>
+                      <div>
+                        <h3 className="text-base font-extrabold text-[#0F1B2F]">
+                          {quizTitle}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Teste as alternativas e verifique o gabarito comentado com a justificativa pedagógica.
+                        </p>
                       </div>
                     </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetQuiz}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reiniciar Respostas</span>
+                      </button>
+                    </div>
+                  </div>
 
                     <div className="space-y-5">
                       {quizQuestions.map((q, qIndex) => {
@@ -1070,6 +985,17 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
                         )
                       })}
                     </div>
+                  </div>
+              ) : (
+                !examDriveUrl && (
+                  <div className="p-10 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2">
+                    <Award className="w-10 h-10 text-slate-400 mx-auto" />
+                    <h3 className="text-sm font-bold text-slate-800">
+                      Nenhuma avaliação / quiz vinculada a esta aula ou disciplina
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Cadastre ou importe uma prova na aba &quot;Avaliações &amp; Quizzes&quot; vinculada a esta disciplina ou aula para que as questões apareçam aqui automaticamente.
+                    </p>
                   </div>
                 )
               )}

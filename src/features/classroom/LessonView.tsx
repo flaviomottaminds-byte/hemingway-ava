@@ -112,7 +112,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
   const [revealedFeedbacks, setRevealedFeedbacks] = useState<Record<string, boolean>>({})
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false)
 
-  // Carrega questões avaliativas específicas da aula ou disciplina
+  // Carrega questões avaliativas reais salvas no Supabase para a aula ou disciplina
   useEffect(() => {
     const targetLessonId = supabaseLesson?.id || lesson.id
     const targetCourseId = supabaseLesson?.course_id || (lesson as any).course_id
@@ -120,105 +120,21 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
 
     setIsLoadingQuiz(true)
     assessmentService
-      .getAssessments({ course_id: targetCourseId, discipline_id: targetDisciplineId })
-      .then((assessments) => {
-        let found = assessments.find((a) => a.lesson_id && a.lesson_id === targetLessonId)
-        if (!found && assessments.length > 0) {
-          found = assessments[0]
-        }
-
-        if (found && found.questions && found.questions.length > 0) {
+      .getAssessmentForLesson({
+        lesson_id: targetLessonId,
+        discipline_id: targetDisciplineId,
+        course_id: targetCourseId,
+      })
+      .then((found) => {
+        if (found && Array.isArray(found.questions) && found.questions.length > 0) {
           setQuizQuestions(found.questions)
         } else {
-          // Questões formativas padrão de teste para visualização de simulado com gabarito comentado
-          setQuizQuestions([
-            {
-              id: 'aula-q1',
-              sequence_order: 1,
-              statement:
-                'Com base nos conteúdos e orientações apresentados nesta aula, qual é a principal diretriz a ser aplicada na prática profissional?',
-              points: 5,
-              feedback:
-                'Gabarito Comentado Hemingway School: A alternativa B reflete a conformidade regulatória e a aplicação exata dos conceitos tributários e trabalhistas norte-americanos discutidos no material desta aula.',
-              options: [
-                {
-                  id: 'aula-opt-1-a',
-                  option_letter: 'A',
-                  text: 'Ignorar as obrigações formais quando a remuneração for inferior ao piso estadual.',
-                  is_correct: false,
-                },
-                {
-                  id: 'aula-opt-1-b',
-                  option_letter: 'B',
-                  text: 'Manter a documentação fiscal e relatórios de horas estritamente alinhados às diretrizes oficiais do IRS e do Department of Labor.',
-                  is_correct: true,
-                },
-                {
-                  id: 'aula-opt-1-c',
-                  option_letter: 'C',
-                  text: 'Transferir a responsabilidade fiscal integral ao contratante sem verificação prévia dos formulários emitidos.',
-                  is_correct: false,
-                },
-                {
-                  id: 'aula-opt-1-d',
-                  option_letter: 'D',
-                  text: 'Dispensar a retenção dos impostos FICA em contratos temporários de prestação de serviço.',
-                  is_correct: false,
-                },
-                {
-                  id: 'aula-opt-1-e',
-                  option_letter: 'E',
-                  text: 'Submeter declarações fiscais apenas após decorridos dois anos de atividade contínua.',
-                  is_correct: false,
-                },
-              ],
-            },
-            {
-              id: 'aula-q2',
-              sequence_order: 2,
-              statement:
-                'Segundo as normas fundamentais do padrão corporativo norte-americano, como deve ser calculada a remuneração de horas extras (Overtime)?',
-              points: 5,
-              feedback:
-                'Gabarito Comentado Hemingway School: Conforme a FLSA, qualquer hora trabalhada além de 40 horas na semana laboral deve ser remunerada com no mínimo 1.5x o valor da hora normal (Time and a Half).',
-              options: [
-                {
-                  id: 'aula-opt-2-a',
-                  option_letter: 'A',
-                  text: 'Mesmo valor da hora regular sem nenhum adicional legal.',
-                  is_correct: false,
-                },
-                {
-                  id: 'aula-opt-2-b',
-                  option_letter: 'B',
-                  text: 'Adicional de 10% sobre o total semanal acumulado.',
-                  is_correct: false,
-                },
-                {
-                  id: 'aula-opt-2-c',
-                  option_letter: 'C',
-                  text: 'No mínimo 1.5 vezes a taxa horária regular (Time and a Half) para horas que excederem 40 semanais.',
-                  is_correct: true,
-                },
-                {
-                  id: 'aula-opt-2-d',
-                  option_letter: 'D',
-                  text: 'Exclusivamente por meio de folgas compensatórias no trimestre seguinte.',
-                  is_correct: false,
-                },
-                {
-                  id: 'aula-opt-2-e',
-                  option_letter: 'E',
-                  text: 'Apenas quando expressamente autorizado por acordo sindical internacional.',
-                  is_correct: false,
-                },
-              ],
-            },
-          ])
+          setQuizQuestions([])
         }
       })
       .catch((err) => {
         console.warn('Erro ao carregar avaliação da aula:', err)
+        setQuizQuestions([])
       })
       .finally(() => {
         setIsLoadingQuiz(false)

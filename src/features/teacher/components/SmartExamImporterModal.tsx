@@ -52,14 +52,14 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
   activeCourseId,
   activeDisciplineId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'text' | 'preset'>('preset')
+  const [activeTab, setActiveTab] = useState<'upload' | 'text' | 'preset'>('upload')
   const [pastedText, setPastedText] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  const [parsedQuestions, setParsedQuestions] = useState<AssessmentQuestion[]>(LESSON_1_1_QUESTIONS)
+  const [parsedQuestions, setParsedQuestions] = useState<AssessmentQuestion[]>([])
   const [warnings, setWarnings] = useState<string[]>([])
-  const [previewTitle, setPreviewTitle] = useState('Avaliação Oficial — Aula 1.1: FOH vs. BOH')
+  const [previewTitle, setPreviewTitle] = useState('')
   const [expandedIndices, setExpandedIndices] = useState<Record<number, boolean>>({ 0: true })
   const [isSavingToDb, setIsSavingToDb] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -155,19 +155,19 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
     if (parsedQuestions.length === 0) return
     setIsSavingToDb(true)
     try {
-      const targetCourseId = defaultCourseId || activeCourseId || (courses.length > 0 ? courses[0].id : 'crs-101')
-      const targetDisciplineId = defaultDisciplineId || activeDisciplineId || (disciplines.length > 0 ? disciplines[0].id : 'disc-01')
-      const targetLessonId = defaultLessonId || 'les-01'
+      const targetCourseId = defaultCourseId || activeCourseId || (courses.length > 0 ? courses[0].id : '')
+      const targetDisciplineId = defaultDisciplineId || activeDisciplineId || (disciplines.length > 0 ? disciplines[0].id : '')
+      const targetLessonId = defaultLessonId || undefined
 
       const saved = await assessmentService.createAssessment({
         course_id: targetCourseId,
         discipline_id: targetDisciplineId,
-        scope_type: 'lesson_specific',
+        scope_type: targetLessonId ? 'lesson_specific' : 'discipline_final',
         lesson_id: targetLessonId,
-        title: previewTitle,
+        title: previewTitle.trim() || 'Avaliação Importada',
         description: 'Banco de questões com gabarito comentado importado pelo Importador Inteligente da Hemingway School.',
         max_score: parsedQuestions.length,
-        passing_score: Math.round(parsedQuestions.length * 0.7),
+        passing_score: Math.max(1, Math.round(parsedQuestions.length * 0.7)),
         max_attempts: 3,
         time_limit_minutes: 45,
         questions: parsedQuestions,
