@@ -32,26 +32,25 @@ export const CourseDisciplinesModal: React.FC<CourseDisciplinesModalProps> = ({
   onUpdateDisciplinesCount,
   onNavigateToCurriculum,
 }) => {
-  if (!isOpen || !course) return null
-
+  const workload = course?.workload_hours || 20
   // Estado inicial de disciplinas simuladas para este curso
   const [disciplines, setDisciplines] = useState<DisciplineItem[]>([
     {
       id: 'd-1',
       title: 'Módulo 1: Fundamentos & Vocabulário Chave',
-      hours: Math.max(4, Math.floor(course.workload_hours * 0.3)),
+      hours: Math.max(4, Math.floor(workload * 0.3)),
       lessonsCount: 6,
     },
     {
       id: 'd-2',
       title: 'Módulo 2: Casos Práticos & Aplicação no Dia a Dia',
-      hours: Math.max(6, Math.floor(course.workload_hours * 0.4)),
+      hours: Math.max(6, Math.floor(workload * 0.4)),
       lessonsCount: 8,
     },
     {
       id: 'd-3',
       title: 'Módulo 3: Legislação & Conformidade',
-      hours: Math.max(4, Math.floor(course.workload_hours * 0.3)),
+      hours: Math.max(4, Math.floor(workload * 0.3)),
       lessonsCount: 5,
     },
   ])
@@ -59,6 +58,8 @@ export const CourseDisciplinesModal: React.FC<CourseDisciplinesModalProps> = ({
   const [newTitle, setNewTitle] = useState('')
   const [newHours, setNewHours] = useState('5')
   const [isAdding, setIsAdding] = useState(false)
+
+  if (!isOpen || !course) return null
 
   const handleAddDiscipline = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -18,7 +18,6 @@ import {
   Link2,
   Plus,
   Presentation,
-  Search,
   HelpCircle,
   Award,
   Sparkles,
@@ -48,7 +47,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   onSaved,
   onDelete,
 }) => {
-  const isEditing = Boolean(lesson?.id)
+  // ID local da aula (atualizado imediatamente após INSERT de aula nova para que próximos cliques façam UPDATE)
+  const [currentLessonId, setCurrentLessonId] = useState<string | undefined>(lesson?.id)
+  const currentLessonIdRef = useRef<string | undefined>(lesson?.id)
+  const wasOpenRef = useRef<boolean>(false)
+  const isEditing = Boolean(currentLessonId || lesson?.id)
 
   // Cursos e Disciplinas para os selects
   const [courses, setCourses] = useState<SupabaseCourse[]>([])
@@ -105,9 +108,27 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
     }
   }, [isOpen])
 
-  // Inicializa os dados com base na aula recebida
+  // Inicializa os dados quando o modal abre ou quando troca para outra aula diferente
   useEffect(() => {
-    if (isOpen && lesson) {
+    if (!isOpen) {
+      wasOpenRef.current = false
+      return
+    }
+
+    const incomingId = lesson?.id
+    const isJustOpening = !wasOpenRef.current
+    const isSwitchingToDifferentLesson =
+      wasOpenRef.current && incomingId !== currentLessonIdRef.current
+
+    if (!isJustOpening && !isSwitchingToDifferentLesson) {
+      return
+    }
+
+    wasOpenRef.current = true
+    currentLessonIdRef.current = incomingId
+    setCurrentLessonId(incomingId)
+
+    if (lesson) {
       setTitle(lesson.title || '')
       setCourseId(lesson.course_id || '')
       setDisciplineId(lesson.discipline_id || '')
@@ -137,7 +158,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       } else {
         setLessonQuestionCount(0)
       }
-    } else if (isOpen && !lesson) {
+    } else {
       setTitle('')
       setCourseId('')
       setDisciplineId('')
@@ -197,7 +218,6 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
 
     setErrorMessage(null)
 
-    // Se o título estiver vazio, preenche automaticamente com o nome do PDF
     if (!title.trim()) {
       const autoTitle = file.name
         .replace(/\.pdf$/i, '')
@@ -218,7 +238,6 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setIsUploadingPdf(false)
     }
 
-    // Extrai texto em segundo plano e preenche/complementa o texto da aula
     setIsExtractingPdf(true)
     try {
       const extracted = await extractTextFromPdf(file)
@@ -243,9 +262,15 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   const handleSlidesFileUpload = async (file: File) => {
     if (!file) return
     const lower = file.name.toLowerCase()
-    const valid = lower.endsWith('.pptx') || lower.endsWith('.ppsx') || lower.endsWith('.ppt') || lower.endsWith('.pdf')
+    const valid =
+      lower.endsWith('.pptx') ||
+      lower.endsWith('.ppsx') ||
+      lower.endsWith('.ppt') ||
+      lower.endsWith('.pdf')
     if (!valid) {
-      setErrorMessage('Formato de arquivo inválido. Por favor, envie uma apresentação em .pptx, .ppsx ou .pdf.')
+      setErrorMessage(
+        'Formato de arquivo inválido. Por favor, envie uma apresentação em .pptx, .ppsx ou .pdf.',
+      )
       return
     }
 
@@ -270,10 +295,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
     }
   }
 
-  // Validação e Submissão com UPDATE real no Supabase
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Salvar Aula mantendo o modal aberto (UPDATE se já existir id, INSERT se for nova + atualiza currentLessonId)
+  const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage(null)
+    setSuccessMessage(null)
 
     if (!title.trim()) {
       setErrorMessage('O título da aula é obrigatório.')
@@ -293,7 +319,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         materials: lesson?.materials || [],
         pdf_url: pdfUrl || undefined,
         pdf_name: pdfName || undefined,
-        useful_links: usefulLinks.filter((l) => l.title.trim() && l.url.trim()),
+        useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
         slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
         slides_url_pt: slidesUrlPt || undefined,
         slides_url_en: slidesUrlEn || undefined,
@@ -301,20 +327,26 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         exam_drive_url: examDriveUrl.trim() || undefined,
       }
 
+      const targetId = currentLessonIdRef.current || currentLessonId || lesson?.id
       let saved: SupabaseLesson
-      if (isEditing && lesson?.id) {
+
+      if (targetId) {
         // Se existir id: executa UPDATE no registro existente
-        saved = await lessonService.updateLesson(lesson.id, payload)
-        setSuccessMessage('Aula atualizada com sucesso no Supabase!')
+        saved = await lessonService.updateLesson(targetId, payload)
       } else {
-        // Somente se NÃO existir id: executa INSERT para nova aula
+        // Se for aula nova: executa INSERT e atualiza imediatamente o id local para evitar duplicação
         saved = await lessonService.createLesson(payload)
-        setSuccessMessage('Nova aula criada com sucesso no Supabase!')
+        currentLessonIdRef.current = saved.id
+        setCurrentLessonId(saved.id)
       }
+
+      setSuccessMessage('Aula salva com sucesso!')
+      onSaved(saved)
+
+      // Mantém o modal aberto e limpa apenas o aviso discreto após alguns segundos
       setTimeout(() => {
-        onSaved(saved)
-        onClose()
-      }, 700)
+        setSuccessMessage((prev) => (prev === 'Aula salva com sucesso!' ? null : prev))
+      }, 4500)
     } catch (err: unknown) {
       console.error('Erro ao salvar alterações da aula:', err)
       const msg = err instanceof Error ? err.message : 'Falha ao salvar aula no Supabase'
@@ -322,6 +354,43 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Objeto consolidado do formulário para pré-visualização imediata pelo botão de Olhinho
+  const effectiveLessonId = currentLessonId || lesson?.id
+  const resolvedSlidesUrl = slidesUrlPt || slidesUrlEn || slidesUrlEs
+  const lessonFormData = {
+    id: effectiveLessonId,
+    title: title.trim() || 'Aula sem Título',
+    course_id: courseId || (courses[0]?.id ?? ''),
+    courseId: courseId || (courses[0]?.id ?? ''),
+    discipline_id: disciplineId || (disciplines[0]?.id ?? ''),
+    disciplineId: disciplineId || (disciplines[0]?.id ?? ''),
+    sequence_order: Number(sequenceOrder) || 1,
+    sequenceOrder: Number(sequenceOrder) || 1,
+    duration_minutes: Number(durationMinutes) || 20,
+    durationMinutes: Number(durationMinutes) || 20,
+    content_text: contentText,
+    contentText: contentText,
+    video_url: videoUrl,
+    videoUrl: videoUrl,
+    pdf_url: pdfUrl,
+    pdfUrl: pdfUrl,
+    pdf_name: pdfName,
+    pdfName: pdfName,
+    slides_url: resolvedSlidesUrl,
+    slidesUrl: resolvedSlidesUrl,
+    slides_url_pt: slidesUrlPt,
+    slidesUrlPt: slidesUrlPt,
+    slides_url_en: slidesUrlEn,
+    slidesUrlEn: slidesUrlEn,
+    slides_url_es: slidesUrlEs,
+    slidesUrlEs: slidesUrlEs,
+    useful_links: usefulLinks,
+    usefulLinks: usefulLinks,
+    exam_drive_url: examDriveUrl,
+    examDriveUrl: examDriveUrl,
+    materials: lesson?.materials || [],
   }
 
   return (
@@ -349,15 +418,15 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Botão no topo do modal: Pré-visualizar Aula como Aluno */}
+            {/* Botão de Olhinho no topo do modal: Visualizar como Aluno */}
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1C2E4A] hover:bg-[#253e63] text-[#C59E5D] border border-[#C59E5D]/40 transition shadow-xs cursor-pointer"
-              title="Pré-visualizar Aula como Aluno"
+              title="Visualizar como Aluno"
             >
-              <Search className="w-3.5 h-3.5 text-[#C59E5D]" />
-              <span className="hidden sm:inline">Pré-visualizar Aula como Aluno</span>
+              <Eye className="w-3.5 h-3.5 text-[#C59E5D]" />
+              <span className="hidden sm:inline">Visualizar como Aluno</span>
               <span className="sm:hidden">Ver como Aluno</span>
             </button>
 
@@ -365,6 +434,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
               type="button"
               onClick={onClose}
               className="p-1.5 text-slate-300 hover:text-white rounded-xl hover:bg-[#1C2E4A] transition cursor-pointer"
+              title="Fechar modal"
             >
               <X className="w-5 h-5" />
             </button>
@@ -380,14 +450,19 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         )}
 
         {successMessage && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span className="font-bold">{successMessage}</span>
+          <div className="mx-6 mt-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2 shrink-0 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-bold">{successMessage}</span>
+            </div>
+            <span className="text-[11px] text-emerald-700 hidden sm:inline">
+              Clique em &quot;Visualizar como Aluno&quot; ao lado de Salvar para testar
+            </span>
           </div>
         )}
 
         {/* Formulário com Scroll Confortável */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+        <form onSubmit={handleSaveLesson} className="p-6 space-y-5 overflow-y-auto flex-1">
           {/* 1. Título e Ordem */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="sm:col-span-3">
@@ -697,9 +772,10 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                     }
                     onChange={(e) => {
                       const val = e.target.value
-                      const formatted = (val.includes('gamma.app') || val.includes('<iframe') || val.includes('src='))
-                        ? formatGammaEmbedUrl(val)
-                        : val
+                      const formatted =
+                        val.includes('gamma.app') || val.includes('<iframe') || val.includes('src=')
+                          ? formatGammaEmbedUrl(val)
+                          : val
                       if (activeSlideLangTab === 'pt') setSlidesUrlPt(formatted)
                       else if (activeSlideLangTab === 'en') setSlidesUrlEn(formatted)
                       else if (activeSlideLangTab === 'es') setSlidesUrlEs(formatted)
@@ -707,7 +783,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                     placeholder="Cole o link do Gamma.app (ex: https://gamma.app/docs/... ou <iframe src=...>) ou URL de PDF"
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D]"
                   />
-                  {(activeSlideLangTab === 'pt' ? slidesUrlPt : activeSlideLangTab === 'en' ? slidesUrlEn : slidesUrlEs) && (
+                  {(activeSlideLangTab === 'pt'
+                    ? slidesUrlPt
+                    : activeSlideLangTab === 'en'
+                      ? slidesUrlEn
+                      : slidesUrlEs) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -757,7 +837,9 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
               </div>
               <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
                 <span className="font-semibold text-slate-700">Dica Gamma:</span>
-                <span>Aceita link direto do Gamma.app (docs/...), código &lt;iframe&gt; do Share &gt; Embed, ou PDF exportado do Gamma.</span>
+                <span>
+                  Aceita link direto do Gamma.app (docs/...), código &lt;iframe&gt; do Share &gt; Embed, ou PDF exportado do Gamma.
+                </span>
               </p>
             </div>
           </div>
@@ -926,9 +1008,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
             {usefulLinks.length === 0 ? (
               <div className="p-4 rounded-xl border border-dashed border-[#C59E5D]/40 text-center bg-white/70">
                 <Link2 className="w-6 h-6 text-[#C59E5D]/60 mx-auto mb-1" />
-                <p className="text-xs font-semibold text-slate-700">Nenhum link complementar adicionado ainda</p>
+                <p className="text-xs font-semibold text-slate-700">
+                  Nenhum link complementar adicionado ainda
+                </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Clique em "+ Adicionar Link Útil" acima para anexar referências a esta aula
+                  Clique em &quot;+ Adicionar Link Útil&quot; acima para anexar referências a esta aula
                 </p>
               </div>
             ) : (
@@ -998,47 +1082,57 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
             )}
           </div>
 
-          {/* Rodapé com Botões de Ação */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
-            <div>
-              {lesson?.id && onDelete && (
+          {/* Rodapé com Botões de Ação e Notificação Verde Discreta */}
+          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2.5">
+              {effectiveLessonId && onDelete && (
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm(`Deseja realmente excluir a aula "${lesson.title}" do Supabase?`)) {
-                      onDelete(lesson.id)
+                    if (
+                      window.confirm(
+                        `Deseja realmente excluir a aula "${title || lesson?.title}" do Supabase?`,
+                      )
+                    ) {
+                      onDelete(effectiveLessonId)
                       onClose()
                     }
                   }}
                   disabled={isSubmitting}
                   className="px-3.5 py-2 rounded-xl text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 transition cursor-pointer flex items-center gap-1.5"
-                  title="Excluir aula do banco de dados (remover duplicada)"
+                  title="Excluir aula do banco de dados"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-red-600" />
                   <span>Excluir Aula</span>
                 </button>
               )}
+
+              {successMessage && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in duration-150">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>{successMessage}</span>
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 ml-auto">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
                 className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
-                Cancelar
+                Fechar
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(true)}
                 className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/50 shadow-md flex items-center gap-2 transition cursor-pointer"
-                title="Visualizar aula na visão do aluno com as alterações atuais"
+                title="Visualizar como Aluno"
               >
                 <Eye className="w-4 h-4 text-[#C59E5D]" />
-                <span className="hidden sm:inline">Visualizar como Aluno</span>
-                <span className="sm:hidden">Ver Aluno</span>
+                <span>Visualizar como Aluno</span>
               </button>
 
               <button
@@ -1049,12 +1143,12 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-[#0F1B2F]" />
-                    <span>Salvando no Supabase...</span>
+                    <span>Salvando...</span>
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4 text-[#0F1B2F]" />
-                    <span>Salvar Alterações</span>
+                    <span>Salvar</span>
                   </>
                 )}
               </button>
@@ -1063,29 +1157,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         </form>
       </div>
 
-      {/* Modal de Simulação da Sala de Aula do Aluno */}
+      {/* Modal de Simulação da Sala de Aula do Aluno (z-[70] acima do modal de edição) */}
       <StudentLessonPreviewModal
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
-        lesson={{
-          id: lesson?.id,
-          title: title.trim() || 'Aula sem Título',
-          course_id: courseId,
-          discipline_id: disciplineId,
-          sequence_order: Number(sequenceOrder) || 1,
-          duration_minutes: Number(durationMinutes) || 20,
-          content_text: contentText,
-          video_url: videoUrl,
-          pdf_url: pdfUrl,
-          pdf_name: pdfName,
-          slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs,
-          slides_url_pt: slidesUrlPt,
-          slides_url_en: slidesUrlEn,
-          slides_url_es: slidesUrlEs,
-          useful_links: usefulLinks,
-          exam_drive_url: examDriveUrl,
-          materials: lesson?.materials || [],
-        }}
+        lesson={lessonFormData}
         courseTitle={courses.find((c) => c.id === courseId)?.title}
         disciplineName={disciplines.find((d) => d.id === disciplineId)?.name}
       />
@@ -1095,20 +1171,26 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         isOpen={isImporterOpenInModal}
         onClose={() => {
           setIsImporterOpenInModal(false)
-          if (lesson?.id) {
-            assessmentService.countQuestionsByLessonId(lesson.id).then(setLessonQuestionCount).catch(() => {})
+          if (effectiveLessonId) {
+            assessmentService
+              .countQuestionsByLessonId(effectiveLessonId)
+              .then(setLessonQuestionCount)
+              .catch(() => {})
           }
         }}
         courses={courses}
         disciplines={disciplines}
         defaultCourseId={courseId}
         defaultDisciplineId={disciplineId}
-        defaultLessonId={lesson?.id}
+        defaultLessonId={effectiveLessonId}
         onSaveToDatabaseSuccess={(saved) => {
           if (saved?.questions?.length) {
             setLessonQuestionCount(saved.questions.length)
-          } else if (lesson?.id) {
-            assessmentService.countQuestionsByLessonId(lesson.id).then(setLessonQuestionCount).catch(() => {})
+          } else if (effectiveLessonId) {
+            assessmentService
+              .countQuestionsByLessonId(effectiveLessonId)
+              .then(setLessonQuestionCount)
+              .catch(() => {})
           }
         }}
       />

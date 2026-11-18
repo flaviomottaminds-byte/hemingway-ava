@@ -79,7 +79,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   lessonId,
   initialCourseId,
   initialDisciplineId,
-  onCancel,
+  onCancel: _onCancel,
   onSaveSuccess,
 }) => {
   // Estado que armazena a aula em edição (preservando o ID original)
@@ -100,32 +100,52 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   // Modal de Pré-visualização do Aluno
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [selectedLessonForPreview, setSelectedLessonForPreview] = useState<any>(null)
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null)
 
   const handlePreviewAsStudent = (lessonItem: SupabaseLesson) => {
     setSelectedLessonForPreview(lessonItem)
     setIsPreviewModalOpen(true)
   }
 
-  const handlePreviewFromFullEditor = () => {
-    setSelectedLessonForPreview({
-      id: editingLesson?.id || lessonId,
+  const getCurrentLessonFormData = () => {
+    const resolvedSlides = slidesUrlPt || slidesUrlEn || slidesUrlEs
+    return {
+      id: editingLesson?.id || lessonId || undefined,
       title: title.trim() || 'Aula sem Título',
       course_id: selectedCourseId,
+      courseId: selectedCourseId,
       discipline_id: selectedDisciplineId,
+      disciplineId: selectedDisciplineId,
       sequence_order: Number(sequenceOrder) || 1,
+      sequenceOrder: Number(sequenceOrder) || 1,
       duration_minutes: Number(durationMinutes) || 20,
+      durationMinutes: Number(durationMinutes) || 20,
       content_text: contentText,
+      contentText: contentText,
       video_url: videoUrl,
+      videoUrl: videoUrl,
       pdf_url: pdfUrl,
+      pdfUrl: pdfUrl,
       pdf_name: pdfName,
-      slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs,
+      pdfName: pdfName,
+      slides_url: resolvedSlides,
+      slidesUrl: resolvedSlides,
       slides_url_pt: slidesUrlPt,
+      slidesUrlPt: slidesUrlPt,
       slides_url_en: slidesUrlEn,
+      slidesUrlEn: slidesUrlEn,
       slides_url_es: slidesUrlEs,
+      slidesUrlEs: slidesUrlEs,
       exam_drive_url: examDriveUrl,
+      examDriveUrl: examDriveUrl,
       useful_links: usefulLinks,
+      usefulLinks: usefulLinks,
       materials: materials,
-    })
+    }
+  }
+
+  const handlePreviewFromFullEditor = () => {
+    setSelectedLessonForPreview(getCurrentLessonFormData())
     setIsPreviewModalOpen(true)
   }
 
@@ -245,20 +265,19 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     }
   }, [lessonId])
 
-  // Callback de salvamento via modal rápido (UPDATE em registro existente)
+  // Callback de salvamento via modal rápido (mantém o modal aberto com o ID atualizado)
   const handleLessonSaved = (saved: SupabaseLesson) => {
     const targetId = selectedLessonForModal?.id || editingLesson?.id || saved.id
     setLessonsList((prev) => {
       const exists = prev.some((l) => l.id === targetId || l.id === saved.id)
       if (exists) {
-        // Atualiza apenas o item correspondente sem adicionar novo item
         return prev.map((l) => (l.id === targetId || l.id === saved.id ? saved : l))
       }
       return [saved, ...prev]
     })
-    setSelectedLessonForModal(null)
-    setEditingLesson(null)
-    showToast('Aula atualizada com sucesso no Supabase!')
+    setSelectedLessonForModal(saved)
+    setEditingLesson(saved)
+    showToast('Aula salva com sucesso!')
     onSaveSuccess(saved)
   }
 
@@ -591,10 +610,11 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     }
   }
 
-  // Salvar Aula no Supabase (diferencia UPDATE de INSERT pelo ID)
+  // Salvar Aula no Supabase mantendo o formulário aberto (diferencia UPDATE de INSERT pelo ID)
   const handleSave = async () => {
     if (!validate()) return
     setIsSubmitting(true)
+    setSaveSuccessMessage(null)
 
     try {
       const payload: CreateLessonDTO = {
@@ -608,7 +628,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         materials,
         pdf_url: pdfUrl || undefined,
         pdf_name: pdfName || undefined,
-        useful_links: usefulLinks.filter((l) => l.title.trim() && l.url.trim()),
+        useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
         slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
         slides_url_pt: slidesUrlPt || undefined,
         slides_url_en: slidesUrlEn || undefined,
@@ -622,19 +642,22 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
       if (targetId) {
         // Se existir id: executa UPDATE no registro existente
         saved = await lessonService.updateLesson(targetId, payload)
-        // Atualiza apenas o item correspondente no estado local sem adicionar um novo item
         setLessonsList((prev) => prev.map((l) => (l.id === targetId ? saved : l)))
-        showToast(`Aula "${saved.title}" atualizada com sucesso no Supabase!`)
       } else {
-        // Somente se NÃO existir id: executa INSERT para nova aula
+        // Se for aula nova: executa INSERT e atualiza o estado local com o id retornado para evitar duplicação
         saved = await lessonService.createLesson(payload)
         setLessonsList((prev) => [saved, ...prev.filter((l) => l.id !== saved.id)])
-        showToast(`Nova aula "${saved.title}" gravada no Supabase!`)
       }
 
-      setEditingLesson(null)
-      setViewMode('list')
+      // Mantém o formulário aberto e atualiza editingLesson com o ID retornado pelo Supabase
+      setEditingLesson(saved)
+      setSaveSuccessMessage('Aula salva com sucesso!')
+      showToast('Aula salva com sucesso!')
       onSaveSuccess(saved)
+
+      setTimeout(() => {
+        setSaveSuccessMessage((prev) => (prev === 'Aula salva com sucesso!' ? null : prev))
+      }, 4500)
     } catch (err) {
       console.error('Erro ao salvar aula:', err)
       showToast('Falha ao gravar aula no banco de dados.')
@@ -850,15 +873,15 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
 
                     {/* Direita: Botões de Ação com Destaque Dourado/Marinho no "Editar" */}
                     <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
-                      {/* Botão de Lupa: Visualizar na Visão do Aluno */}
+                      {/* Botão de Olhinho: Visualizar como Aluno */}
                       <button
                         type="button"
                         onClick={() => handlePreviewAsStudent(item)}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#C59E5D] border border-[#C59E5D]/50 shadow-xs transition-all transform active:scale-95 cursor-pointer"
-                        title="Visualizar na Visão do Aluno"
+                        title="Visualizar como Aluno"
                       >
-                        <Search className="w-3.5 h-3.5 text-[#C59E5D]" />
-                        <span className="hidden sm:inline">Ver como Aluno</span>
+                        <Eye className="w-3.5 h-3.5 text-[#C59E5D]" />
+                        <span className="hidden sm:inline">Visualizar como Aluno</span>
                       </button>
 
                       {/* Botão EDITAR em Destaque Dourado (#C59E5D) / Azul Marinho (#0F1B2F) */}
@@ -944,12 +967,20 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                 </p>
               </div>
 
-              {/* Botões: Voltar para Lista, Excluir e Salvar Aula */}
-              <div className="flex items-center gap-2.5">
+              {/* Botões: Voltar para Lista, Excluir, Olhinho (Visualizar como Aluno) e Salvar Aula */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {saveSuccessMessage && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in duration-150">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{saveSuccessMessage}</span>
+                  </span>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
                     setEditingLesson(null)
+                    setSaveSuccessMessage(null)
                     setViewMode('list')
                   }}
                   disabled={isSubmitting}
@@ -975,15 +1006,15 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                   </button>
                 )}
 
-                {/* Botão de Pré-visualização na visão do aluno */}
+                {/* Botão de Olhinho: Visualizar como Aluno */}
                 <button
                   type="button"
                   onClick={handlePreviewFromFullEditor}
                   className="px-4 py-2.5 bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#C59E5D] text-xs font-bold rounded-xl border border-[#C59E5D]/50 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer transform active:scale-95"
-                  title="Visualizar na Visão do Aluno"
+                  title="Visualizar como Aluno"
                 >
-                  <Search className="w-3.5 h-3.5 text-[#C59E5D]" />
-                  <span>Ver como Aluno</span>
+                  <Eye className="w-4 h-4 text-[#C59E5D]" />
+                  <span>Visualizar como Aluno</span>
                 </button>
 
                 <button
@@ -2027,20 +2058,33 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
       {/* Barra de Ação Inferior Fixa ou Final */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>
-            Ao salvar, a aula será sincronizada na tabela <strong>lessons</strong> do Supabase e ficará disponível para os estudantes do AVA.
-          </span>
+          {saveSuccessMessage ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in duration-150">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{saveSuccessMessage}</span>
+            </span>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                Ao salvar, a aula será sincronizada na tabela <strong>lessons</strong> do Supabase e ficará disponível para os estudantes do AVA.
+              </span>
+            </>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              setEditingLesson(null)
+              setSaveSuccessMessage(null)
+              setViewMode('list')
+            }}
             disabled={isSubmitting}
             className="flex-1 sm:flex-initial px-5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
           >
-            Cancelar
+            Voltar à Lista
           </button>
           <button
             type="button"
@@ -2056,11 +2100,11 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
             type="button"
             onClick={handleSave}
             disabled={isSubmitting}
-            className="flex-1 sm:flex-initial px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="flex-1 sm:flex-initial px-6 py-2.5 bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-[#C59E5D]/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-3.5 h-3.5 border-2 border-[#0F1B2F]/30 border-t-[#0F1B2F] rounded-full animate-spin" />
                 <span>Gravando Aula...</span>
               </>
             ) : (
@@ -2123,7 +2167,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
       <StudentLessonPreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
-        lesson={selectedLessonForPreview}
+        lesson={viewMode === 'editor' ? getCurrentLessonFormData() : selectedLessonForPreview}
         courseTitle={currentCourse?.title}
         disciplineName={currentDiscipline?.name}
       />

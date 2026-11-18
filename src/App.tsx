@@ -631,9 +631,10 @@ export function App() {
                 setEditingLessonId(null)
                 setActiveView('teacher-curriculum')
               }}
-              onSaveSuccess={() => {
-                setEditingLessonId(null)
-                setActiveView('teacher-curriculum')
+              onSaveSuccess={(saved) => {
+                if (saved?.id && editingLessonId) {
+                  setEditingLessonId(saved.id)
+                }
               }}
             />
           )}
