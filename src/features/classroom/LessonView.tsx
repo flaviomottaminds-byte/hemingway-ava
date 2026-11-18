@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   XCircle,
   Download,
@@ -18,6 +19,7 @@ import {
   HelpCircle,
   RotateCcw,
   BookOpen,
+  Sparkles,
 } from 'lucide-react'
 import type { Lesson, SupabaseLesson, UserProfile, UsefulLink, AssessmentQuestion } from '../../types'
 import type { SupportedLanguageCode } from '../../locales/i18n'
@@ -36,15 +38,7 @@ interface LessonViewProps {
 export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDashboard }) => {
   const { t, i18n } = useTranslation()
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLanguageCode) || 'pt'
-  const initialHasPdf = Boolean(
-    lesson.pdf_url ||
-      lesson.materials?.some((m) => m.type === 'pdf' && m.url && m.url !== '#'),
-  )
-  const [activeTab, setActiveTab] = useState<
-    'transcription' | 'overview' | 'resources' | 'useful_links' | 'notes' | 'slides'
-  >(initialHasPdf ? 'overview' : 'transcription')
   const [isCompleted, setIsCompleted] = useState(lesson.isCompleted)
-  const [userNote, setUserNote] = useState('')
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -110,10 +104,6 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
   const slidesUrlEn = supabaseLesson?.slides_url_en || lesson.slides_url_en || null
   const slidesUrlEs = supabaseLesson?.slides_url_es || lesson.slides_url_es || null
   const hasSlides = Boolean(slidesUrl || slidesUrlPt || slidesUrlEn || slidesUrlEs)
-
-  // Formato ativo de estudo do aluno: Sequência didática em 4 etapas
-  // 1. Vídeo Aula | 2. Slides (Gamma / PDF) | 3. Apostila & Materiais | 4. Avaliação / Quiz
-  const [activeMediaView, setActiveMediaView] = useState<'video' | 'slides' | 'pdf' | 'quiz'>('video')
 
   // Avaliação / Quiz da Aula (Nativo e Google Drive / Forms)
   const examDriveUrl = supabaseLesson?.exam_drive_url || lesson.exam_drive_url || ''
@@ -245,18 +235,6 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
     setRevealedFeedbacks({})
   }
 
-  useEffect(() => {
-    if (hasVideo) {
-      setActiveMediaView('video')
-    } else if (hasSlides) {
-      setActiveMediaView('slides')
-    } else if (pdfUrl) {
-      setActiveMediaView('pdf')
-    } else {
-      setActiveMediaView('quiz')
-    }
-  }, [hasVideo, hasSlides, pdfUrl])
-
   // Links Úteis e Materiais Complementares da aula
   const usefulLinks: UsefulLink[] =
     supabaseLesson?.useful_links && Array.isArray(supabaseLesson.useful_links)
@@ -265,13 +243,108 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         ? lesson.useful_links
         : []
 
-  // Prioridade absoluta para o PDF diagramado: quando houver PDF anexado,
-  // oculta completamente o bloco de texto corrido / transcrição gerada para evitar duplicidade.
-  useEffect(() => {
-    if (pdfUrl && activeTab === 'transcription') {
-      setActiveTab(usefulLinks.length > 0 ? 'useful_links' : 'overview')
+  // Definição da Trilha Paginada Passo a Passo (Etapas Sequenciais)
+  const activeStages = useMemo(() => {
+    const stages: {
+      id: 'video' | 'slides_apostila' | 'links_materiais' | 'avaliacao_quiz'
+      title: string
+      shortTitle: string
+      description: string
+      icon: React.ComponentType<{ className?: string }>
+    }[] = []
+
+    // Página 1 — Vídeo Aula: Exibe exclusivamente o player de vídeo da aula em destaque
+    if (hasVideo && youtubeId) {
+      stages.push({
+        id: 'video',
+        title: 'Página 1 — Vídeo Aula',
+        shortTitle: 'Vídeo Aula',
+        description: 'Assista à videoaula do professor com exemplos e diretrizes práticas.',
+        icon: Play,
+      })
     }
-  }, [pdfUrl, usefulLinks.length, activeTab])
+
+    // Página 2 — Apresentação de Slides & Apostila: Slides interativos do Gamma e visualizador da Apostila
+    if (hasSlides || pdfUrl || (transcriptionText && transcriptionText.trim().length > 0) || stages.length === 0) {
+      stages.push({
+        id: 'slides_apostila',
+        title: 'Página 2 — Apresentação de Slides & Apostila',
+        shortTitle: 'Slides & Apostila',
+        description: 'Acesse os slides no Gamma.app e leia a apostila oficial do curso.',
+        icon: Presentation,
+      })
+    }
+
+    // Página 3 — Links Úteis & Materiais Complementares
+    if (usefulLinks.length > 0 || (lesson.materials && lesson.materials.length > 0)) {
+      stages.push({
+        id: 'links_materiais',
+        title: 'Página 3 — Links Úteis & Materiais Complementares',
+        shortTitle: 'Links & Materiais',
+        description: 'Acesse artigos oficiais, referências do IRS e documentação complementar.',
+        icon: Link2,
+      })
+    }
+
+    // Página 4 — Avaliação / Quiz Final
+    if (quizQuestions.length > 0 || (examDriveUrl && examDriveUrl.trim().length > 0)) {
+      stages.push({
+        id: 'avaliacao_quiz',
+        title: 'Página 4 — Avaliação / Quiz Final',
+        shortTitle: 'Avaliação & Prova',
+        description: 'Teste seus conhecimentos com auto-correção e gabarito comentado oficial.',
+        icon: Award,
+      })
+    }
+
+    return stages.map((st, idx) => ({
+      ...st,
+      stepNumber: idx + 1,
+    }))
+  }, [hasVideo, youtubeId, hasSlides, pdfUrl, transcriptionText, usefulLinks.length, lesson.materials, quizQuestions.length, examDriveUrl])
+
+  // Controle de Navegação da Trilha Paginada
+  const [currentStageIndex, setCurrentStageIndex] = useState<number>(0)
+  const safeStageIndex = Math.min(Math.max(0, currentStageIndex), Math.max(0, activeStages.length - 1))
+  const currentStage = activeStages[safeStageIndex] || activeStages[0]
+
+  const isFirstStage = safeStageIndex === 0
+  const isLastStage = safeStageIndex === activeStages.length - 1
+
+  // Alternador interno de visualização da Página 2 (Slides vs Apostila)
+  const [subTabSlidesApostila, setSubTabSlidesApostila] = useState<'slides' | 'apostila'>(
+    hasSlides ? 'slides' : 'apostila',
+  )
+
+  useEffect(() => {
+    if (hasSlides) {
+      setSubTabSlidesApostila('slides')
+    } else {
+      setSubTabSlidesApostila('apostila')
+    }
+  }, [hasSlides, pdfUrl])
+
+  const handlePrevStage = () => {
+    if (safeStageIndex > 0) {
+      setCurrentStageIndex(safeStageIndex - 1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  const handleNextStage = () => {
+    if (safeStageIndex < activeStages.length - 1) {
+      setCurrentStageIndex(safeStageIndex + 1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      // Concluir Aula e Avançar na última página
+      setIsCompleted(true)
+      setIsStatementModalOpen(true)
+    }
+  }
+
+  const progressPercent = activeStages.length > 0
+    ? Math.round(((safeStageIndex + 1) / activeStages.length) * 100)
+    : 100
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -357,183 +430,392 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
         </div>
       </div>
 
-      {/* Seletor de Sequência Didática em 4 Etapas da Aula */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-[#FAF8F2] border-2 border-[#C59E5D]/40 rounded-2xl shadow-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-extrabold uppercase text-[#0F1B2F] px-2.5 py-1 bg-[#C59E5D]/20 rounded-lg">
-            Sequência Didática:
-          </span>
-
-          {/* 1. Vídeo Aula */}
-          <button
-            type="button"
-            onClick={() => setActiveMediaView('video')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeMediaView === 'video'
-                ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <Play className="w-3.5 h-3.5 text-[#C59E5D]" />
-            <span>1. Vídeo Aula</span>
-            {hasVideo && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500" title="Vídeo disponível" />
-            )}
-          </button>
-
-          {/* 2. Slides (Gamma / PDF) */}
-          <button
-            type="button"
-            onClick={() => setActiveMediaView('slides')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeMediaView === 'slides'
-                ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <Presentation className="w-3.5 h-3.5 text-[#C59E5D]" />
-            <span>2. Slides da Aula</span>
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
-              Gamma / PDF
+      {/* 1. BARRA DE PROGRESSO E TRILHA PAGINADA NO TOPO DA AULA */}
+      <div className="bg-white rounded-3xl border-2 border-[#C59E5D]/40 p-4 sm:p-5 shadow-sm space-y-4">
+        {/* Topo: Etapa X de Y e Porcentagem */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-2xl bg-[#0F1B2F] text-[#C59E5D] font-extrabold text-sm flex items-center justify-center shadow-xs border border-[#C59E5D]/30">
+              {currentStage.stepNumber}
             </span>
-          </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-extrabold uppercase text-[#C59E5D] tracking-wider block">
+                  Etapa {currentStage.stepNumber} de {activeStages.length}
+                </span>
+                <span className="text-slate-300">•</span>
+                <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                  {currentStage.description}
+                </span>
+              </div>
+              <h2 className="text-base sm:text-lg font-extrabold text-[#0F1B2F] mt-0.5">
+                {currentStage.title}
+              </h2>
+            </div>
+          </div>
 
-          {/* 3. Apostila & Materiais */}
-          <button
-            type="button"
-            onClick={() => setActiveMediaView('pdf')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeMediaView === 'pdf'
-                ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5 text-[#C59E5D]" />
-            <span>3. Apostila & Materiais</span>
-            {pdfUrl && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500" title="Material em PDF disponível" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 hidden sm:inline">
+              Progresso da Aula:
+            </span>
+            <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#C59E5D]/20 text-[#0F1B2F] border border-[#C59E5D]/40 font-mono">
+              {progressPercent}% Concluído
+            </span>
+          </div>
+        </div>
 
-          {/* 4. Avaliação / Quiz */}
-          <button
-            type="button"
-            onClick={() => setActiveMediaView('quiz')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeMediaView === 'quiz'
-                ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5 text-[#C59E5D]" />
-            <span>4. Avaliação / Quiz</span>
-            {quizQuestions.length > 0 ? (
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-600 text-white">
-                {quizQuestions.length} Qs
-              </span>
-            ) : examDriveUrl ? (
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
-                Google Drive
-              </span>
-            ) : null}
-          </button>
+        {/* Barra de Progresso Visual */}
+        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#C59E5D] via-[#B38C4B] to-[#0F1B2F] transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+
+        {/* Pílulas/Abas das Etapas Ativas (clicáveis para navegação direta) */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+          <span className="text-[11px] font-bold text-slate-400 mr-1 hidden sm:inline">
+            Etapas da Trilha:
+          </span>
+          {activeStages.map((stage, idx) => {
+            const isActive = idx === safeStageIndex
+            const isCompletedBefore = idx < safeStageIndex
+            const StageIcon = stage.icon
+
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                onClick={() => {
+                  setCurrentStageIndex(idx)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md shadow-[#0F1B2F]/20 border border-[#C59E5D]'
+                    : isCompletedBefore
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {isCompletedBefore ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <StageIcon className={`w-3.5 h-3.5 ${isActive ? 'text-[#C59E5D]' : 'text-slate-500'}`} />
+                )}
+                <span>
+                  {stage.stepNumber}. {stage.shortTitle}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* 1. Player de Vídeo do YouTube */}
-      {activeMediaView === 'video' && hasVideo && youtubeId && (
-        <div className="relative aspect-video w-full rounded-3xl bg-slate-950 overflow-hidden shadow-2xl border-2 border-[#0F1B2F] flex items-center justify-center">
-          <iframe
-            className="w-full h-full border-0 rounded-3xl"
-            src={`https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&modestbranding=1&enablejsapi=1`}
-            title={currentTitle}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
+      {/* 2. CONTEÚDO EXCLUSIVO DA ETAPA ATUAL */}
+
+      {/* PÁGINA 1 — VÍDEO AULA */}
+      {currentStage.id === 'video' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {hasVideo && youtubeId ? (
+            <div className="relative aspect-video w-full rounded-3xl bg-slate-950 overflow-hidden shadow-2xl border-2 border-[#0F1B2F] flex items-center justify-center">
+              <iframe
+                className="w-full h-full border-0 rounded-3xl"
+                src={`https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&modestbranding=1&enablejsapi=1`}
+                title={currentTitle}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2">
+              <Play className="w-12 h-12 text-slate-400 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-800">Nenhum vídeo cadastrado nesta aula</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Esta aula não possui vídeo gravado. Clique em "Próxima Página ➡️" para acessar os slides e a apostila.
+              </p>
+            </div>
+          )}
+
+          {/* Card de Resumo Pedagógico e Objetivo da Lição */}
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Objetivo & Ementa Pedagógica da Lição
+              </h3>
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed">
+              Capacitar trabalhadores imigrantes a entender seus direitos fundamentais no ambiente corporativo norte-americano, prevenir a exploração salarial e dominar a declaração fiscal entre W-2 e 1099 perante o IRS.
+            </p>
+            <div className="p-3 bg-[#FAF8F2] rounded-xl border border-[#C59E5D]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <span className="font-bold text-[#0F1B2F]">Dica de Estudo:</span>
+                <span>Assista com atenção e anote os pontos principais. Na próxima etapa, você terá os slides e a apostila completa.</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleNextStage}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#C59E5D] hover:underline cursor-pointer shrink-0"
+              >
+                <span>Avançar para Slides ➡️</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* 2. Player Inteligente de Apresentação de Slides */}
-      {activeMediaView === 'slides' && hasSlides && (
-        <SlideViewer
-          slidesUrl={slidesUrl || undefined}
-          slidesUrlPt={slidesUrlPt || undefined}
-          slidesUrlEn={slidesUrlEn || undefined}
-          slidesUrlEs={slidesUrlEs || undefined}
-          preferredLanguage={currentLang as 'pt' | 'en' | 'es'}
-          lessonTitle={currentTitle}
-        />
+      {/* PÁGINA 2 — APRESENTAÇÃO DE SLIDES & APOSTILA */}
+      {currentStage.id === 'slides_apostila' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Seletor interno: Slides vs Apostila (quando ambos existem) */}
+          {(hasSlides && (pdfUrl || (transcriptionText && transcriptionText.trim().length > 0))) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-[#FAF8F2] border-2 border-[#C59E5D]/40 rounded-2xl shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-extrabold uppercase text-[#0F1B2F] px-2.5 py-1 bg-[#C59E5D]/20 rounded-lg">
+                  Material da Etapa 2:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSubTabSlidesApostila('slides')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    subTabSlidesApostila === 'slides'
+                      ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md border border-[#C59E5D]'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  <Presentation className="w-3.5 h-3.5 text-[#C59E5D]" />
+                  <span>Apresentação de Slides (Gamma.app)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubTabSlidesApostila('apostila')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    subTabSlidesApostila === 'apostila'
+                      ? 'bg-[#0F1B2F] text-[#FAF8F2] shadow-md border border-[#C59E5D]'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#C59E5D]" />
+                  <span>Apostila & Material de Estudo</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Sub-Aba 1: Apresentação de Slides */}
+          {subTabSlidesApostila === 'slides' && hasSlides && (
+            <SlideViewer
+              slidesUrl={slidesUrl || undefined}
+              slidesUrlPt={slidesUrlPt || undefined}
+              slidesUrlEn={slidesUrlEn || undefined}
+              slidesUrlEs={slidesUrlEs || undefined}
+              preferredLanguage={currentLang as 'pt' | 'en' | 'es'}
+              lessonTitle={currentTitle}
+            />
+          )}
+
+          {/* Sub-Aba 2: Apostila Oficial (PDF ou Texto) */}
+          {(subTabSlidesApostila === 'apostila' || !hasSlides) && (
+            <div>
+              {pdfUrl ? (
+                <div className="rounded-3xl overflow-hidden border-2 border-[#0F1B2F] bg-white shadow-2xl ring-2 ring-[#C59E5D]/40 transition-all">
+                  <div className="bg-[#0F1B2F] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-[#C59E5D]/50">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2.5 rounded-2xl bg-[#C59E5D]/20 border border-[#C59E5D]/50 text-[#C59E5D] shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-[#C59E5D] text-[#0F1B2F] shadow-xs">
+                            Apostila Oficial
+                          </span>
+                          <span className="text-xs text-[#EADBBE]/90 truncate font-mono">
+                            {pdfName}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-[#FAF8F2] truncate mt-0.5">
+                          {currentTitle}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <a
+                        href={pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C2E4A] hover:bg-[#253e63] text-[#FAF8F2] border border-[#C59E5D]/40 transition-colors shadow-xs"
+                        title="Abrir PDF em nova guia ou tela cheia"
+                      >
+                        <ExternalLink className="w-4 h-4 text-[#C59E5D]" />
+                        <span>Abrir em Nova Guia</span>
+                      </a>
+                      <a
+                        href={pdfUrl}
+                        download={pdfName}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md transition-colors"
+                        title="Baixar Material em PDF"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Baixar Apostila (PDF)</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="relative w-full bg-slate-900" style={{ height: '800px' }}>
+                    <iframe
+                      src={`${pdfUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                      className="w-full h-full border-0"
+                      title={pdfName}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Subtitles className="w-4 h-4 text-blue-600" />
+                      <span>Conteúdo da Lição (Apostila em Texto)</span>
+                    </span>
+                    <span className="text-xs text-blue-600 font-medium">Idioma: {currentLang.toUpperCase()}</span>
+                  </div>
+                  <div className="text-slate-700 leading-relaxed text-sm whitespace-pre-line bg-slate-50/70 p-5 rounded-2xl border border-slate-100 font-sans">
+                    {transcriptionText || 'Nenhum texto cadastrado para esta lição.'}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* 3. Visualizador Nativo do Material em PDF (Protagonista da Aula / Diagramação Original) */}
-      {activeMediaView === 'pdf' && pdfUrl && (
-        <div className="rounded-3xl overflow-hidden border-2 border-[#0F1B2F] bg-white shadow-2xl ring-2 ring-[#C59E5D]/40 transition-all">
-          {/* Barra de Ferramentas Superior do PDF */}
-          <div className="bg-[#0F1B2F] text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-[#C59E5D]/50">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="p-2.5 rounded-2xl bg-[#C59E5D]/20 border border-[#C59E5D]/50 text-[#C59E5D] shrink-0">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-[#C59E5D] text-[#0F1B2F] shadow-xs">
-                    Material Oficial
-                  </span>
-                  <span className="text-xs text-[#EADBBE]/90 truncate font-mono">
-                    {pdfName}
-                  </span>
+      {/* PÁGINA 3 — LINKS ÚTEIS & MATERIAIS COMPLEMENTARES */}
+      {currentStage.id === 'links_materiais' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-[#C59E5D]/20 text-[#0F1B2F] border border-[#C59E5D]/40">
+                  <Link2 className="w-5 h-5 text-[#C59E5D]" />
                 </div>
-                <p className="text-sm font-bold text-[#FAF8F2] truncate mt-0.5">
-                  {currentTitle}
+                <div>
+                  <h3 className="font-extrabold text-[#0F1B2F] text-base sm:text-lg">
+                    Links Úteis & Materiais Complementares
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Documentação oficial, fontes governamentais e ferramentas externas recomendadas pelo instrutor
+                  </p>
+                </div>
+              </div>
+
+              {usefulLinks.length > 0 && (
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#FAF8F2] text-[#0F1B2F] border border-[#C59E5D]/40 self-start sm:self-auto">
+                  {usefulLinks.length} {usefulLinks.length === 1 ? 'link disponível' : 'links disponíveis'}
+                </span>
+              )}
+            </div>
+
+            {/* Grid de Links Úteis */}
+            {usefulLinks.length === 0 ? (
+              <div className="p-10 text-center bg-[#FAF8F2]/60 rounded-3xl border border-dashed border-[#C59E5D]/40 space-y-2">
+                <Link2 className="w-8 h-8 text-[#C59E5D]/60 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-800">
+                  Nenhum link complementar cadastrado para esta aula
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Clique em "Próxima Página ➡️" abaixo para prosseguir diretamente para a avaliação da aula.
                 </p>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {usefulLinks.map((link, idx) => (
+                  <a
+                    key={link.id || idx}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group p-5 rounded-2xl bg-[#FAF8F2] hover:bg-white border-2 border-slate-200 hover:border-[#C59E5D] hover:shadow-lg transition-all flex flex-col justify-between gap-3 cursor-pointer text-left"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <h4 className="font-bold text-sm sm:text-base text-[#0F1B2F] group-hover:text-[#B38C4B] transition-colors leading-snug">
+                          {link.title}
+                        </h4>
+                        <span className="p-1.5 rounded-xl bg-white group-hover:bg-[#C59E5D] text-slate-400 group-hover:text-[#0F1B2F] border border-slate-200 group-hover:border-[#C59E5D] transition-all shadow-xs shrink-0">
+                          <ExternalLink className="w-4 h-4" />
+                        </span>
+                      </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
-              {/* Botão "Abrir em Nova Guia / Tela Cheia" */}
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C2E4A] hover:bg-[#253e63] text-[#FAF8F2] border border-[#C59E5D]/40 transition-colors shadow-xs"
-                title="Abrir PDF em nova guia ou tela cheia"
-              >
-                <ExternalLink className="w-4 h-4 text-[#C59E5D]" />
-                <span>Abrir em Nova Guia / Tela Cheia</span>
-              </a>
+                      {link.description && (
+                        <p className="text-xs text-slate-600 font-sans leading-relaxed line-clamp-3">
+                          {link.description}
+                        </p>
+                      )}
+                    </div>
 
-              {/* Botão "Baixar Material em PDF" */}
-              <a
-                href={pdfUrl}
-                download={pdfName}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md transition-colors"
-                title="Baixar Material em PDF"
-              >
-                <Download className="w-4 h-4" />
-                <span>Baixar Material em PDF</span>
-              </a>
-            </div>
-          </div>
+                    <div className="pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-xs font-mono text-slate-400 group-hover:text-[#0F1B2F]">
+                      <span className="truncate max-w-[260px] text-[11px]">
+                        {link.url.replace(/^https?:\/\//i, '')}
+                      </span>
+                      <span className="text-xs font-bold text-[#C59E5D] group-hover:underline flex items-center gap-1 font-sans">
+                        <span>Acessar</span>
+                        <span>↗</span>
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
 
-          {/* Iframe Nativo com height: 800px e Diagramação Original Fiel */}
-          <div className="relative w-full bg-slate-900" style={{ height: '800px' }}>
-            <iframe
-              src={`${pdfUrl}#toolbar=1&navpanes=0&scrollbar=1`}
-              className="w-full h-full border-0"
-              title={pdfName}
-            />
+            {/* Anexos Adicionais da Aula (se houver) */}
+            {lesson.materials && lesson.materials.length > 0 && (
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Anexos Adicionais para Consulta
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {lesson.materials.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="font-bold text-slate-800 truncate">{item.title}</p>
+                          <p className="text-[11px] text-slate-400">{item.size}</p>
+                        </div>
+                      </div>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold hover:border-blue-400 transition"
+                      >
+                        Baixar
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* 4. Etapa 4: Avaliação / Quiz da Aula */}
-      {activeMediaView === 'quiz' && (() => {
-        const driveEmbed = examDriveUrl ? formatGoogleDriveEmbedUrl(examDriveUrl) : null
+      {/* PÁGINA 4 — AVALIAÇÃO / QUIZ FINAL */}
+      {currentStage.id === 'avaliacao_quiz' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Modalidade Google Drive ou Google Forms */}
+          {examDriveUrl && (() => {
+            const driveEmbed = formatGoogleDriveEmbedUrl(examDriveUrl)
 
-        return (
-          <div className="space-y-6 animate-in fade-in duration-150">
-            {/* Modalidade Google Drive ou Google Forms */}
-            {examDriveUrl && (
+            return (
               <div className="p-5 sm:p-6 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-3">
@@ -574,505 +856,229 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
                   </div>
                 )}
               </div>
-            )}
+            )
+          })()}
 
-            {/* Quiz Interativo Nativo (AVA) */}
-            {quizQuestions.length > 0 && (
-              <div className="space-y-5">
-                <div className="p-5 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
-                      <Award className="w-6 h-6 text-[#C59E5D]" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-extrabold text-[#0F1B2F]">
-                        Quiz Interativo da Aula (AVA)
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Responda às 5 alternativas (A a E) para testar seus conhecimentos e confira o gabarito comentado oficial.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleResetQuiz}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Reiniciar Respostas</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-5">
-                  {quizQuestions.map((q, qIndex) => {
-                    const selectedOptId = selectedAnswers[q.id]
-                    const isAnswered = Boolean(selectedOptId || revealedFeedbacks[q.id])
-                    const selectedOption = q.options.find((opt) => opt.id === selectedOptId)
-                    const isCorrect = selectedOption?.is_correct ?? false
-
-                    return (
-                      <div
-                        key={q.id || qIndex}
-                        className="p-5 sm:p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4"
-                      >
-                        {/* Enunciado da Questão */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <span className="w-7 h-7 rounded-xl bg-[#0F1B2F] text-[#C59E5D] text-xs font-extrabold flex items-center justify-center shrink-0">
-                              {qIndex + 1}
-                            </span>
-                            <div>
-                              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                                Questão {qIndex + 1} • {q.points || 5} Pontos
-                              </span>
-                              <p className="text-sm sm:text-base font-bold text-[#0F1B2F] mt-1 leading-snug">
-                                {q.statement}
-                              </p>
-                            </div>
-                          </div>
-
-                          {isAnswered && (
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
-                                isCorrect
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : 'bg-red-100 text-red-800 border border-red-300'
-                              }`}
-                            >
-                              {isCorrect ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Acertou</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-3.5 h-3.5 text-red-600" />
-                                  <span>Incorreta</span>
-                                </>
-                              )}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Alternativas (A a E) */}
-                        <div className="space-y-2.5 pt-1">
-                          {q.options.map((opt) => {
-                            const isSelected = selectedOptId === opt.id
-                            let buttonStyle = 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
-
-                            if (isAnswered) {
-                              if (opt.is_correct) {
-                                buttonStyle = 'bg-emerald-50 border-emerald-400 text-emerald-900 font-semibold ring-1 ring-emerald-300'
-                              } else if (isSelected && !opt.is_correct) {
-                                buttonStyle = 'bg-red-50 border-red-400 text-red-900 line-through'
-                              }
-                            } else if (isSelected) {
-                              buttonStyle = 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-200'
-                            }
-
-                            return (
-                              <button
-                                key={opt.id}
-                                type="button"
-                                onClick={() => handleSelectOption(q.id, opt.id)}
-                                className={`w-full p-3.5 rounded-2xl border text-left text-xs sm:text-sm flex items-center gap-3 transition-all cursor-pointer ${buttonStyle}`}
-                              >
-                                <span
-                                  className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
-                                    isSelected
-                                      ? 'bg-[#0F1B2F] text-[#C59E5D]'
-                                      : 'bg-white border border-slate-300 text-slate-700'
-                                  }`}
-                                >
-                                  {opt.option_letter}
-                                </span>
-                                <span className="flex-1">{opt.text}</span>
-                                {isAnswered && opt.is_correct && (
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                )}
-                              </button>
-                            )
-                          })}
-                        </div>
-
-                        {/* Gabarito Comentado e Justificativa Pedagógica */}
-                        {isAnswered && (
-                          <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-1.5 animate-in fade-in duration-150">
-                            <div className="flex items-center gap-2 text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
-                              <BookOpen className="w-4 h-4 text-[#C59E5D]" />
-                              <span>Gabarito Comentado & Feedback Pedagógico</span>
-                            </div>
-                            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                              {q.feedback ||
-                                'A alternativa correta alinha-se com a diretriz federal estabelecida no currículo de imigrantes da Hemingway School.'}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Caso não haja nem link do drive nem questões no quiz */}
-            {!examDriveUrl && quizQuestions.length === 0 && !isLoadingQuiz && (
-              <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
-                <HelpCircle className="w-12 h-12 text-slate-400 mx-auto mb-2" />
-                <h3 className="text-sm font-bold text-slate-800">Nenhuma avaliação configurada para esta aula</h3>
-                <p className="text-xs text-slate-500 mt-1">O professor ou administrador ainda não cadastrou o quiz interativo ou o link do Google Drive desta aula.</p>
-              </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Caso não haja vídeo, slides, PDF nem avaliação cadastrados */}
-      {!hasVideo && !hasSlides && !pdfUrl && !examDriveUrl && quizQuestions.length === 0 && (
-        <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
-          <FileText className="w-12 h-12 text-slate-400 mx-auto mb-2" />
-          <h3 className="text-sm font-bold text-slate-800">Nenhum material de aula anexado</h3>
-          <p className="text-xs text-slate-500 mt-1">O professor ou administrador ainda não realizou o upload de vídeo, slides ou PDF desta aula.</p>
-        </div>
-      )}
-
-      {/* Bloco de Destaque: Links Úteis da Aula */}
-      {usefulLinks.length > 0 && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-[#0F1B2F] text-[#C59E5D] shrink-0">
-              <Link2 className="w-5 h-5 text-[#C59E5D]" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#0F1B2F] flex items-center gap-2">
-                <span>Links Úteis & Materiais Complementares</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
-                  {usefulLinks.length} {usefulLinks.length === 1 ? 'Link' : 'Links'}
-                </span>
-              </h4>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Esta aula possui referências externas, links do IRS e documentação complementar para consulta.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveTab('useful_links')}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/50 transition cursor-pointer self-start sm:self-auto shrink-0 shadow-xs"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-[#C59E5D]" />
-            <span>Ver Links Úteis</span>
-          </button>
-        </div>
-      )}
-
-      {/* Abas de Conteúdo Pedagógico */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="flex border-b border-slate-200 overflow-x-auto">
-          {/* Aba de Transcrição / Conteúdo da Aula (Exibida APENAS quando NÃO houver PDF anexado para evitar duplicidade) */}
-          {!pdfUrl && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('transcription')}
-              className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-                activeTab === 'transcription'
-                  ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {t('classroom.tabs.transcription')}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setActiveTab('overview')}
-            className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-              activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {t('classroom.tabs.overview')}
-          </button>
-          {hasSlides && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('slides')}
-              className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'slides'
-                  ? 'border-[#C59E5D] text-[#0F1B2F] bg-[#FAF8F2] font-bold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Presentation className="w-4 h-4 text-[#C59E5D]" />
-              <span>Slides da Aula</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setActiveTab('useful_links')}
-            className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'useful_links'
-                ? 'border-[#0F1B2F] text-[#0F1B2F] bg-[#FAF8F2] font-bold'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Link2 className="w-4 h-4 text-[#C59E5D]" />
-            <span>Links Úteis & Complementares</span>
-            {usefulLinks.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#C59E5D] text-[#0F1B2F]">
-                {usefulLinks.length}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('resources')}
-            className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-              activeTab === 'resources'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {t('classroom.tabs.resources')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('notes')}
-            className={`px-5 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-              activeTab === 'notes'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {t('classroom.tabs.notes')}
-          </button>
-        </div>
-
-        <div className="p-6">
-          {/* Aba de Transcrição / Conteúdo da Aula (Exibida APENAS quando NÃO houver PDF anexado) */}
-          {!pdfUrl && activeTab === 'transcription' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Subtitles className="w-4 h-4 text-blue-600" />
-                  <span>Conteúdo & Apostila Oficial (Supabase)</span>
-                </span>
-                <span className="text-xs text-blue-600 font-medium">Idioma: {currentLang.toUpperCase()}</span>
-              </div>
-              <div className="text-slate-700 leading-relaxed text-sm whitespace-pre-line bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
-                {transcriptionText}
-              </div>
-            </div>
-          )}
-
-          {/* Aba de Resumo e Ementa */}
-          {activeTab === 'overview' && (
-            <div className="space-y-4 text-sm text-slate-700">
-              <h3 className="font-bold text-slate-900">Objetivo Pedagógico da Lição</h3>
-              <p>
-                Capacitar trabalhadores imigrantes a entender seus direitos fundamentais no ambiente corporativo norte-americano, prevenir a exploração salarial e dominar a declaração fiscal entre W-2 e 1099 perante o IRS.
-              </p>
-              <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-blue-900 text-xs">Vídeo Original</h4>
-                  <p className="text-xs text-blue-700 truncate max-w-md">{videoUrl}</p>
-                </div>
-                <a
-                  href={videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
-                >
-                  <span>Abrir no YouTube</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-          )}
-
-          {/* Aba de Apresentação de Slides */}
-          {hasSlides && activeTab === 'slides' && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              <SlideViewer
-                slidesUrl={slidesUrl || undefined}
-                slidesUrlPt={slidesUrlPt || undefined}
-                slidesUrlEn={slidesUrlEn || undefined}
-                slidesUrlEs={slidesUrlEs || undefined}
-                preferredLanguage={currentLang as 'pt' | 'en' | 'es'}
-                lessonTitle={currentTitle}
-              />
-            </div>
-          )}
-
-          {/* Aba de Links Úteis & Materiais Complementares */}
-          {activeTab === 'useful_links' && (
-            <div className="space-y-5 animate-in fade-in duration-150">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-[#C59E5D]/20 text-[#0F1B2F] border border-[#C59E5D]/40">
-                    <Link2 className="w-5 h-5 text-[#C59E5D]" />
+          {/* Quiz Interativo Nativo (AVA) */}
+          {quizQuestions.length > 0 && (
+            <div className="space-y-5">
+              <div className="p-5 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
+                    <Award className="w-6 h-6 text-[#C59E5D]" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-[#0F1B2F] text-base">
-                      Links Úteis & Materiais Complementares
+                    <h3 className="text-base font-extrabold text-[#0F1B2F]">
+                      Quiz Interativo da Aula (AVA)
                     </h3>
-                    <p className="text-xs text-slate-500">
-                      Documentação oficial, artigos complementares e ferramentas externas para aprofundar seu estudo
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Responda às 5 alternativas (A a E) para testar seus conhecimentos e confira o gabarito comentado oficial.
                     </p>
                   </div>
                 </div>
 
-                {usefulLinks.length > 0 && (
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#FAF8F2] text-[#0F1B2F] border border-[#C59E5D]/40 self-start sm:self-auto">
-                    {usefulLinks.length} {usefulLinks.length === 1 ? 'link disponível' : 'links disponíveis'}
-                  </span>
-                )}
-              </div>
-
-              {usefulLinks.length === 0 ? (
-                <div className="p-10 text-center bg-[#FAF8F2]/60 rounded-3xl border border-dashed border-[#C59E5D]/40 space-y-2">
-                  <Link2 className="w-8 h-8 text-[#C59E5D]/60 mx-auto" />
-                  <h4 className="text-sm font-bold text-slate-800">
-                    Nenhum link complementar cadastrado para esta aula ainda
-                  </h4>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Quando o professor ou administrador adicionar materiais externos, regulamentações ou guias, eles aparecerão aqui prontos para acesso direto.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {usefulLinks.map((link, idx) => (
-                    <a
-                      key={link.id || idx}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group p-5 rounded-2xl bg-[#FAF8F2] hover:bg-white border-2 border-slate-200 hover:border-[#C59E5D] hover:shadow-lg transition-all flex flex-col justify-between gap-3 cursor-pointer text-left"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-3">
-                          <h4 className="font-bold text-sm sm:text-base text-[#0F1B2F] group-hover:text-[#B38C4B] transition-colors leading-snug">
-                            {link.title}
-                          </h4>
-                          <span className="p-1.5 rounded-xl bg-white group-hover:bg-[#C59E5D] text-slate-400 group-hover:text-[#0F1B2F] border border-slate-200 group-hover:border-[#C59E5D] transition-all shadow-xs shrink-0">
-                            <ExternalLink className="w-4 h-4" />
-                          </span>
-                        </div>
-
-                        {link.description && (
-                          <p className="text-xs text-slate-600 font-sans leading-relaxed line-clamp-3">
-                            {link.description}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-xs font-mono text-slate-400 group-hover:text-[#0F1B2F]">
-                        <span className="truncate max-w-[260px] text-[11px]">
-                          {link.url.replace(/^https?:\/\//i, '')}
-                        </span>
-                        <span className="text-xs font-bold text-[#C59E5D] group-hover:underline flex items-center gap-1 font-sans">
-                          <span>Acessar</span>
-                          <span>↗</span>
-                        </span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Aba de Materiais Complementares */}
-          {activeTab === 'resources' && (
-            <div className="space-y-3">
-              <h3 className="font-bold text-slate-900 text-sm mb-3">Documentos e Apostilas para Download</h3>
-              {lesson.materials.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/20 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                      <span className="text-xs text-slate-400">{item.size} • PDF Oficial</span>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => alert(`Iniciando download simulado de: ${item.title}`)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 border border-blue-200 transition cursor-pointer"
+                    onClick={handleResetQuiz}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Baixar</span>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reiniciar Respostas</span>
                   </button>
                 </div>
-              ))}
+              </div>
 
-              {usefulLinks.length > 0 && (
-                <div className="pt-4 border-t border-slate-100 space-y-3">
-                  <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <Link2 className="w-3.5 h-3.5 text-[#C59E5D]" />
-                    <span>Links Complementares da Aula ({usefulLinks.length})</span>
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {usefulLinks.map((link, idx) => (
-                      <a
-                        key={link.id || idx}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-3.5 rounded-xl bg-[#FAF8F2] border border-slate-200 hover:border-[#C59E5D] transition-all flex flex-col justify-between gap-1.5 group text-left"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-bold text-xs text-[#0F1B2F] group-hover:text-[#B38C4B] line-clamp-1">
-                            {link.title}
+              <div className="space-y-5">
+                {quizQuestions.map((q, qIndex) => {
+                  const selectedOptId = selectedAnswers[q.id]
+                  const isAnswered = Boolean(selectedOptId || revealedFeedbacks[q.id])
+                  const selectedOption = q.options.find((opt) => opt.id === selectedOptId)
+                  const isCorrect = selectedOption?.is_correct ?? false
+
+                  return (
+                    <div
+                      key={q.id || qIndex}
+                      className="p-5 sm:p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4"
+                    >
+                      {/* Enunciado da Questão */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <span className="w-7 h-7 rounded-xl bg-[#0F1B2F] text-[#C59E5D] text-xs font-extrabold flex items-center justify-center shrink-0">
+                            {qIndex + 1}
                           </span>
-                          <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#C59E5D] shrink-0" />
+                          <div>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                              Questão {qIndex + 1} • {q.points || 5} Pontos
+                            </span>
+                            <p className="text-sm sm:text-base font-bold text-[#0F1B2F] mt-1 leading-snug">
+                              {q.statement}
+                            </p>
+                          </div>
                         </div>
-                        {link.description && (
-                          <p className="text-[11px] text-slate-500 line-clamp-2">{link.description}</p>
+
+                        {isAnswered && (
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
+                              isCorrect
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-red-100 text-red-800 border border-red-300'
+                            }`}
+                          >
+                            {isCorrect ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Acertou</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-3.5 h-3.5 text-red-600" />
+                                <span>Incorreta</span>
+                              </>
+                            )}
+                          </span>
                         )}
-                        <span className="text-[10px] font-mono text-slate-400 truncate">
-                          {link.url.replace(/^https?:\/\//i, '')}
-                        </span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      </div>
+
+                      {/* Alternativas (A a E) */}
+                      <div className="space-y-2.5 pt-1">
+                        {q.options.map((opt) => {
+                          const isSelected = selectedOptId === opt.id
+                          let buttonStyle = 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+
+                          if (isAnswered) {
+                            if (opt.is_correct) {
+                              buttonStyle = 'bg-emerald-50 border-emerald-400 text-emerald-900 font-semibold ring-1 ring-emerald-300'
+                            } else if (isSelected && !opt.is_correct) {
+                              buttonStyle = 'bg-red-50 border-red-400 text-red-900 line-through'
+                            }
+                          } else if (isSelected) {
+                            buttonStyle = 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-200'
+                          }
+
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => handleSelectOption(q.id, opt.id)}
+                              className={`w-full p-3.5 rounded-2xl border text-left text-xs sm:text-sm flex items-center gap-3 transition-all cursor-pointer ${buttonStyle}`}
+                            >
+                              <span
+                                className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                                  isSelected
+                                    ? 'bg-[#0F1B2F] text-[#C59E5D]'
+                                    : 'bg-white border border-slate-300 text-slate-700'
+                                }`}
+                              >
+                                {opt.option_letter}
+                              </span>
+                              <span className="flex-1">{opt.text}</span>
+                              {isAnswered && opt.is_correct && (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Gabarito Comentado e Justificativa Pedagógica */}
+                      {isAnswered && (
+                        <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-1.5 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2 text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
+                            <BookOpen className="w-4 h-4 text-[#C59E5D]" />
+                            <span>Gabarito Comentado & Feedback Pedagógico</span>
+                          </div>
+                          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                            {q.feedback ||
+                              'A alternativa correta alinha-se com a diretriz federal estabelecida no currículo de imigrantes da Hemingway School.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
-          {/* Aba de Anotações do Aluno */}
-          {activeTab === 'notes' && (
-            <div className="space-y-3">
-              <label className="block text-xs font-semibold text-slate-700">
-                Caderno de Estudos Digital
-              </label>
-              <textarea
-                rows={5}
-                value={userNote}
-                onChange={(e) => setUserNote(e.target.value)}
-                placeholder="Escreva suas dúvidas sobre formulários fiscais, prazos ou termos em inglês para revisar posteriormente..."
-                className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition"
-              />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => alert('Suas anotações foram salvas localmente!')}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition cursor-pointer"
-                >
-                  Salvar no Meu Perfil
-                </button>
-              </div>
+          {/* Caso não haja nem link do drive nem questões no quiz */}
+          {!examDriveUrl && quizQuestions.length === 0 && !isLoadingQuiz && (
+            <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+              <HelpCircle className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-slate-800">Nenhuma avaliação configurada para esta aula</h3>
+              <p className="text-xs text-slate-500 mt-1">O professor ou administrador ainda não cadastrou o quiz interativo ou o link do Google Drive desta aula.</p>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. BARRA DE NAVEGAÇÃO INFERIOR ("PÁGINA ANTERIOR" E "PRÓXIMA PÁGINA") */}
+      <div className="sticky bottom-4 z-40 bg-white/95 backdrop-blur-md rounded-3xl border-2 border-[#0F1B2F] p-4 sm:p-5 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Esquerda: Botão Página Anterior */}
+        <div className="w-full sm:w-auto">
+          {!isFirstStage ? (
+            <button
+              type="button"
+              onClick={handlePrevStage}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>⬅️ Página Anterior</span>
+            </button>
+          ) : (
+            <div className="text-xs text-slate-400 font-medium hidden sm:block">
+              Início da Trilha de Aprendizado
+            </div>
+          )}
+        </div>
+
+        {/* Centro: Indicador de Etapa / Bolinhas de Navegação */}
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+          <span className="text-[#0F1B2F]">
+            Etapa {currentStage.stepNumber} de {activeStages.length}
+          </span>
+          <div className="flex items-center gap-1.5 ml-2">
+            {activeStages.map((_, dotIdx) => (
+              <button
+                key={dotIdx}
+                type="button"
+                onClick={() => {
+                  setCurrentStageIndex(dotIdx)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                className={`h-2.5 rounded-full transition-all cursor-pointer ${
+                  dotIdx === safeStageIndex
+                    ? 'w-6 bg-[#C59E5D]'
+                    : dotIdx < safeStageIndex
+                      ? 'w-2.5 bg-emerald-500 hover:opacity-80'
+                      : 'w-2.5 bg-slate-200 hover:bg-slate-300'
+                }`}
+                title={`Ir para etapa ${dotIdx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Direita: Botão Próxima Página ou Concluir Aula */}
+        <div className="w-full sm:w-auto">
+          {!isLastStage ? (
+            <button
+              type="button"
+              onClick={handleNextStage}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/60 shadow-lg shadow-[#0F1B2F]/20 transition-all cursor-pointer transform active:scale-95"
+            >
+              <span>Próxima Página: {activeStages[safeStageIndex + 1]?.shortTitle || ''}</span>
+              <ArrowRight className="w-4 h-4 text-[#C59E5D]" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleNextStage}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-lg shadow-[#C59E5D]/30 transition-all cursor-pointer transform active:scale-95"
+            >
+              <CheckCircle2 className="w-4 h-4 text-[#0F1B2F]" />
+              <span>Concluir Aula e Avançar ✔️</span>
+            </button>
           )}
         </div>
       </div>

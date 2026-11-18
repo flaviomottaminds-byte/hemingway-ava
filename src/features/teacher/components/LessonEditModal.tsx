@@ -22,6 +22,7 @@ import {
   HelpCircle,
   Award,
   Sparkles,
+  Eye,
 } from 'lucide-react'
 import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline, UsefulLink } from '../../../types'
 import { lessonService, extractYouTubeId, formatGammaEmbedUrl } from '../../../services/lessonService'
@@ -1027,6 +1028,17 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
                 className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
                 Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(true)}
+                className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/50 shadow-md flex items-center gap-2 transition cursor-pointer"
+                title="Visualizar aula na visão do aluno com as alterações atuais"
+              >
+                <Eye className="w-4 h-4 text-[#C59E5D]" />
+                <span className="hidden sm:inline">Visualizar como Aluno</span>
+                <span className="sm:hidden">Ver Aluno</span>
               </button>
 
               <button

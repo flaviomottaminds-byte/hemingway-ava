@@ -2033,7 +2033,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <button
             type="button"
             onClick={onCancel}
@@ -2041,6 +2041,16 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
             className="flex-1 sm:flex-initial px-5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
           >
             Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handlePreviewFromFullEditor}
+            disabled={isSubmitting}
+            className="flex-1 sm:flex-initial px-5 py-2.5 bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] text-xs sm:text-sm font-semibold rounded-xl border border-[#C59E5D]/50 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            title="Visualizar aula na visão do aluno com as alterações atuais"
+          >
+            <Eye className="w-4 h-4 text-[#C59E5D]" />
+            <span>Visualizar como Aluno</span>
           </button>
           <button
             type="button"
