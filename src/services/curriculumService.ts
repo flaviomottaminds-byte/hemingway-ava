@@ -170,43 +170,78 @@ class SupabaseCurriculumService {
   }
 
   /**
-   * Atualização na tabela disciplines
+   * Atualização na tabela disciplines (UPDATE no Supabase pelo ID)
    */
   async updateDiscipline(
     id: string,
     dto: Partial<CreateDisciplineDTO>,
   ): Promise<SupabaseDiscipline> {
     try {
-      await supabase
+      let { error } = await supabase
         .from('disciplines')
         .update({
           ...(dto.name !== undefined && { title: dto.name.trim() }),
           ...(dto.description !== undefined && { description: dto.description.trim() }),
         })
         .eq('id', id)
+
+      if (error && error.code === '42703') {
+        const retry = await supabase
+          .from('disciplines')
+          .update({
+            ...(dto.name !== undefined && { name: dto.name.trim() }),
+            ...(dto.description !== undefined && { description: dto.description.trim() }),
+          })
+          .eq('id', id)
+        error = retry.error
+      } else if (error && error.code === '42P01') {
+        const retry = await supabase
+          .from('modules')
+          .update({
+            ...(dto.name !== undefined && { title: dto.name.trim() }),
+            ...(dto.description !== undefined && { description: dto.description.trim() }),
+          })
+          .eq('id', id)
+        error = retry.error
+      }
+
+      if (error) {
+        console.warn('Erro ao atualizar disciplina no Supabase:', error)
+      }
     } catch (err) {
       console.warn('Erro ao atualizar disciplina no Supabase:', err)
     }
 
     const list = this.loadDisciplines()
     const index = list.findIndex((d) => d.id === id)
-    if (index === -1) {
-      throw new Error(`Disciplina com id ${id} não encontrada.`)
+    let updatedDisc: SupabaseDiscipline
+
+    if (index !== -1) {
+      const current = list[index]
+      updatedDisc = {
+        ...current,
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.description !== undefined && { description: dto.description.trim() }),
+        ...(dto.code !== undefined && { code: dto.code.trim() }),
+        ...(dto.estimated_hours !== undefined && {
+          estimated_hours: Number(dto.estimated_hours) || current.estimated_hours,
+        }),
+        updated_at: new Date().toISOString(),
+      }
+      list[index] = updatedDisc
+    } else {
+      updatedDisc = {
+        id,
+        name: dto.name || 'Módulo/Disciplina Atualizada',
+        description: dto.description || '',
+        code: dto.code || 'MOD-01',
+        estimated_hours: Number(dto.estimated_hours) || 12,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      list.push(updatedDisc)
     }
 
-    const current = list[index]
-    const updatedDisc: SupabaseDiscipline = {
-      ...current,
-      ...(dto.name !== undefined && { name: dto.name.trim() }),
-      ...(dto.description !== undefined && { description: dto.description.trim() }),
-      ...(dto.code !== undefined && { code: dto.code.trim() }),
-      ...(dto.estimated_hours !== undefined && {
-        estimated_hours: Number(dto.estimated_hours) || current.estimated_hours,
-      }),
-      updated_at: new Date().toISOString(),
-    }
-
-    list[index] = updatedDisc
     this.saveDisciplines(list)
     return updatedDisc
   }

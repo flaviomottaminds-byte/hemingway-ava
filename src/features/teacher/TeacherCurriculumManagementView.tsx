@@ -95,7 +95,7 @@ export const TeacherCurriculumManagementView: React.FC<
         showToast(`Disciplina "${updated.name}" atualizada com sucesso!`)
       } else {
         const res = await curriculumService.createDiscipline(dto)
-        setDisciplines((prev) => [res.discipline, ...prev])
+        setDisciplines((prev) => [res.discipline, ...prev.filter((d) => d.id !== res.discipline.id)])
         if (res.isLive) {
           showToast(`🎉 Disciplina "${res.discipline.name}" salva com sucesso no Supabase!`)
         } else if (res.error) {

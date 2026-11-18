@@ -273,6 +273,12 @@ class SupabaseLessonService {
         pdf_url: dto.pdf_url || null,
         pdf_name: dto.pdf_name || null,
       }
+      if (dto.course_id) {
+        insertPayload.course_id = dto.course_id
+      }
+      if (dto.duration_minutes) {
+        insertPayload.duration_minutes = dto.duration_minutes
+      }
       if (dto.useful_links && dto.useful_links.length > 0) {
         insertPayload.useful_links = dto.useful_links
       }
@@ -294,6 +300,18 @@ class SupabaseLessonService {
         error = retry.error
       }
 
+      if (error && (error.code === '42703' || error.message?.includes('youtube_url'))) {
+        delete insertPayload.youtube_url
+        insertPayload.video_url = dto.video_url.trim()
+        const retry = await supabase
+          .from('lessons')
+          .insert([insertPayload])
+          .select()
+          .single()
+        data = retry.data
+        error = retry.error
+      }
+
       if (!error && data) {
         newLesson.id = String(data.id || newLesson.id)
       } else if (error) {
@@ -304,7 +322,7 @@ class SupabaseLessonService {
     }
 
     const list = this.loadLessons()
-    const updated = [...list, newLesson]
+    const updated = [newLesson, ...list]
     this.saveLessons(updated)
     return newLesson
   }
@@ -331,6 +349,7 @@ class SupabaseLessonService {
     if (dto.video_url !== undefined) updatePayload.youtube_url = dto.video_url.trim()
     if (dto.sequence_order !== undefined) updatePayload.sequence_order = dto.sequence_order
     if (dto.discipline_id !== undefined) updatePayload.discipline_id = dto.discipline_id
+    if (dto.course_id !== undefined) updatePayload.course_id = dto.course_id
     if (dto.duration_minutes !== undefined) updatePayload.duration_minutes = dto.duration_minutes
     if (dto.pdf_url !== undefined) updatePayload.pdf_url = dto.pdf_url || null
     if (dto.pdf_name !== undefined) updatePayload.pdf_name = dto.pdf_name || null
@@ -346,6 +365,16 @@ class SupabaseLessonService {
 
       if (error && (error.code === '42703' || error.message?.includes('useful_links')) && updatePayload.useful_links !== undefined) {
         delete updatePayload.useful_links
+        const retry = await supabase
+          .from('lessons')
+          .update(updatePayload)
+          .eq('id', id)
+        error = retry.error
+      }
+
+      if (error && (error.code === '42703' || error.message?.includes('youtube_url')) && updatePayload.youtube_url !== undefined) {
+        delete updatePayload.youtube_url
+        updatePayload.video_url = dto.video_url?.trim()
         const retry = await supabase
           .from('lessons')
           .update(updatePayload)
@@ -381,19 +410,19 @@ class SupabaseLessonService {
     } else {
       updated = {
         id,
-        course_id: dto.course_id || '',
-        discipline_id: dto.discipline_id || '',
-        title: dto.title || 'Aula Atualizada',
-        sequence_order: dto.sequence_order || 1,
-        duration_minutes: dto.duration_minutes || 20,
+        course_id: dto.course_id || existing?.course_id || '',
+        discipline_id: dto.discipline_id || existing?.discipline_id || '',
+        title: dto.title || existing?.title || 'Aula Atualizada',
+        sequence_order: dto.sequence_order || existing?.sequence_order || 1,
+        duration_minutes: dto.duration_minutes || existing?.duration_minutes || 20,
         content_text: effectiveContent,
-        video_url: dto.video_url || '',
+        video_url: dto.video_url || existing?.video_url || '',
         video_youtube_id: youtubeId,
-        materials: dto.materials || [],
-        pdf_url: dto.pdf_url,
-        pdf_name: dto.pdf_name,
+        materials: dto.materials || existing?.materials || [],
+        pdf_url: dto.pdf_url ?? existing?.pdf_url,
+        pdf_name: dto.pdf_name ?? existing?.pdf_name,
         useful_links: effectiveLinks,
-        created_at: new Date().toISOString(),
+        created_at: existing?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
       list.push(updated)

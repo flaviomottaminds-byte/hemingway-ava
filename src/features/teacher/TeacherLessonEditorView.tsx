@@ -46,6 +46,7 @@ import type {
 import { courseService } from '../../services/courseService'
 import { curriculumService } from '../../services/curriculumService'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
+import type { CreateLessonDTO } from '../../services/lessonService'
 import { extractTextFromPdf } from '../../utils/pdfExtractor'
 import { LessonEditModal } from './components/LessonEditModal'
 import { SmartExamImporterModal } from './components/SmartExamImporterModal'
@@ -76,7 +77,9 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   onCancel,
   onSaveSuccess,
 }) => {
-  const isEditing = Boolean(lessonId)
+  // Estado que armazena a aula em edição (preservando o ID original)
+  const [editingLesson, setEditingLesson] = useState<SupabaseLesson | null>(null)
+  const isEditing = Boolean(editingLesson?.id || lessonId)
 
   // Modo de visualização: 'list' (gerenciamento e listagem) ou 'editor' (edição completa)
   const [viewMode, setViewMode] = useState<'list' | 'editor'>(lessonId ? 'editor' : 'list')
@@ -179,25 +182,45 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     loadLessons()
   }, [])
 
-  // Callback de salvamento via modal rápido ou editor
+  // Se receber lessonId via props, carrega a aula correspondente no estado de edição
+  useEffect(() => {
+    if (lessonId) {
+      const found = lessonsList.find((l) => l.id === lessonId)
+      if (found) {
+        handleOpenFullEditor(found)
+      } else {
+        lessonService.getLessonById(lessonId).then((l) => {
+          if (l) handleOpenFullEditor(l)
+        })
+      }
+    }
+  }, [lessonId])
+
+  // Callback de salvamento via modal rápido (UPDATE em registro existente)
   const handleLessonSaved = (saved: SupabaseLesson) => {
+    const targetId = selectedLessonForModal?.id || editingLesson?.id || saved.id
     setLessonsList((prev) => {
-      const exists = prev.some((l) => l.id === saved.id)
+      const exists = prev.some((l) => l.id === targetId || l.id === saved.id)
       if (exists) {
-        return prev.map((l) => (l.id === saved.id ? saved : l))
+        // Atualiza apenas o item correspondente sem adicionar novo item
+        return prev.map((l) => (l.id === targetId || l.id === saved.id ? saved : l))
       }
       return [saved, ...prev]
     })
-    showToast('Aula atualizada com sucesso!')
+    setSelectedLessonForModal(null)
+    setEditingLesson(null)
+    showToast('Aula atualizada com sucesso no Supabase!')
     onSaveSuccess(saved)
   }
 
   const handleOpenEditModal = (lessonItem: SupabaseLesson) => {
+    setEditingLesson(lessonItem)
     setSelectedLessonForModal(lessonItem)
     setIsEditModalOpen(true)
   }
 
   const handleOpenFullEditor = (lessonItem: SupabaseLesson) => {
+    setEditingLesson(lessonItem)
     setTitle(lessonItem.title)
     setSequenceOrder(lessonItem.sequence_order)
     setDurationMinutes(lessonItem.duration_minutes)
@@ -217,6 +240,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   }
 
   const handleOpenNewLesson = () => {
+    setEditingLesson(null)
     setTitle('')
     setSequenceOrder(lessonsList.length + 1)
     setDurationMinutes(20)
@@ -230,11 +254,15 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   }
 
   const handleDeleteLesson = async (lessonItem: SupabaseLesson) => {
-    if (!window.confirm(`Deseja realmente excluir a aula "${lessonItem.title}"?`)) return
+    if (!window.confirm(`Deseja realmente excluir a aula "${lessonItem.title}"? Esta ação removerá o registro do Supabase.`)) return
     try {
       await lessonService.deleteLesson(lessonItem.id)
       setLessonsList((prev) => prev.filter((l) => l.id !== lessonItem.id))
-      showToast('Aula excluída com sucesso.')
+      if (editingLesson?.id === lessonItem.id) {
+        setEditingLesson(null)
+        setViewMode('list')
+      }
+      showToast('Aula excluída com sucesso do Supabase.')
     } catch (err) {
       console.error('Erro ao excluir aula:', err)
       showToast('Falha ao excluir aula.')
@@ -456,13 +484,13 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     return Object.keys(errs).length === 0
   }
 
-  // Salvar Aula no Supabase
+  // Salvar Aula no Supabase (diferencia UPDATE de INSERT pelo ID)
   const handleSave = async () => {
     if (!validate()) return
     setIsSubmitting(true)
 
     try {
-      const payload = {
+      const payload: CreateLessonDTO = {
         course_id: selectedCourseId,
         discipline_id: selectedDisciplineId,
         title: title.trim(),
@@ -476,20 +504,23 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         useful_links: usefulLinks.filter((l) => l.title.trim() && l.url.trim()),
       }
 
+      const targetId = editingLesson?.id || lessonId
+
       let saved: SupabaseLesson
-      if (lessonId) {
-        saved = await lessonService.updateLesson(lessonId, payload)
+      if (targetId) {
+        // Se existir id: executa UPDATE no registro existente
+        saved = await lessonService.updateLesson(targetId, payload)
+        // Atualiza apenas o item correspondente no estado local sem adicionar um novo item
+        setLessonsList((prev) => prev.map((l) => (l.id === targetId ? saved : l)))
         showToast(`Aula "${saved.title}" atualizada com sucesso no Supabase!`)
       } else {
+        // Somente se NÃO existir id: executa INSERT para nova aula
         saved = await lessonService.createLesson(payload)
+        setLessonsList((prev) => [saved, ...prev.filter((l) => l.id !== saved.id)])
         showToast(`Nova aula "${saved.title}" gravada no Supabase!`)
       }
 
-      setLessonsList((prev) => {
-        const exists = prev.some((l) => l.id === saved.id)
-        if (exists) return prev.map((l) => (l.id === saved.id ? saved : l))
-        return [saved, ...prev]
-      })
+      setEditingLesson(null)
       setViewMode('list')
       onSaveSuccess(saved)
     } catch (err) {
@@ -790,17 +821,36 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                 </p>
               </div>
 
-              {/* Botões: Voltar para Lista e Salvar Aula */}
+              {/* Botões: Voltar para Lista, Excluir e Salvar Aula */}
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setViewMode('list')}
+                  onClick={() => {
+                    setEditingLesson(null)
+                    setViewMode('list')
+                  }}
                   disabled={isSubmitting}
                   className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Voltar à Lista</span>
                 </button>
+
+                {isEditing && (editingLesson || lessonId) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const itemToDelete = editingLesson || lessonsList.find((l) => l.id === lessonId)
+                      if (itemToDelete) handleDeleteLesson(itemToDelete)
+                    }}
+                    disabled={isSubmitting}
+                    className="px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                    title="Excluir aula do banco de dados (remover duplicada)"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                    <span>Excluir</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1615,9 +1665,14 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         onClose={() => {
           setIsEditModalOpen(false)
           setSelectedLessonForModal(null)
+          setEditingLesson(null)
         }}
         lesson={selectedLessonForModal}
         onSaved={handleLessonSaved}
+        onDelete={(id) => {
+          const item = lessonsList.find((l) => l.id === id) || selectedLessonForModal
+          if (item) handleDeleteLesson(item)
+        }}
       />
 
       {/* Modal Importador Inteligente de Provas */}

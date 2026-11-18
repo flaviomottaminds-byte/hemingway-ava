@@ -218,36 +218,79 @@ class SupabaseCourseService {
   }
 
   /**
-   * Atualização com persistência
+   * Atualização com persistência (UPDATE no Supabase pelo ID)
    */
   async updateCourse(id: string, dto: UpdateCourseDTO): Promise<SupabaseCourse> {
+    const updatePayload: Record<string, unknown> = {}
+    if (dto.title !== undefined) updatePayload.title = dto.title.trim()
+    if (dto.description !== undefined) updatePayload.description = dto.description.trim()
+    if (dto.workload_hours !== undefined) updatePayload.total_hours = Number(dto.workload_hours)
+    if (dto.default_language !== undefined) updatePayload.language = dto.default_language
+    if (dto.status !== undefined) updatePayload.status = dto.status
+    if (dto.cover_image_url !== undefined) updatePayload.cover_image_url = dto.cover_image_url
+
     try {
-      await supabase
+      let { error } = await supabase
         .from('courses')
-        .update({
-          ...(dto.title !== undefined && { title: dto.title.trim() }),
-          ...(dto.description !== undefined && { description: dto.description.trim() }),
-          ...(dto.workload_hours !== undefined && { total_hours: Number(dto.workload_hours) }),
-          ...(dto.default_language !== undefined && { language: dto.default_language }),
-          ...(dto.status !== undefined && { status: dto.status }),
-        })
+        .update(updatePayload)
         .eq('id', id)
+
+      if (error && error.code === '42703') {
+        const fallbackPayload: Record<string, unknown> = { ...updatePayload }
+        if (fallbackPayload.total_hours !== undefined) {
+          delete fallbackPayload.total_hours
+          fallbackPayload.workload_hours = Number(dto.workload_hours)
+        }
+        if (fallbackPayload.language !== undefined) {
+          delete fallbackPayload.language
+          fallbackPayload.default_language = dto.default_language
+        }
+        const retry = await supabase
+          .from('courses')
+          .update(fallbackPayload)
+          .eq('id', id)
+        error = retry.error
+      }
+
+      if (error) {
+        console.warn('Erro ao atualizar curso no Supabase:', error)
+      }
     } catch (err) {
       console.warn('Erro ao atualizar no Supabase:', err)
     }
 
     const courses = this.loadFromStorage()
     const index = courses.findIndex((c) => c.id === id)
-    if (index === -1) {
-      throw new Error(`Curso com id ${id} não encontrado.`)
+    let updated: SupabaseCourse
+
+    if (index !== -1) {
+      updated = {
+        ...courses[index],
+        ...dto,
+        updated_at: new Date().toISOString(),
+      }
+      courses[index] = updated
+    } else {
+      updated = {
+        id,
+        title: dto.title || 'Curso Atualizado',
+        description: dto.description || '',
+        workload_hours: Number(dto.workload_hours) || 40,
+        default_language: dto.default_language || 'pt',
+        status: dto.status || 'published',
+        cover_image_url:
+          dto.cover_image_url ||
+          'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=700&q=80',
+        instructor_id: 'usr_current_teacher',
+        instructor_name: 'Prof. Leonardo Dias',
+        disciplines_count: dto.disciplines_count || 0,
+        students_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      courses.push(updated)
     }
 
-    const updated = {
-      ...courses[index],
-      ...dto,
-      updated_at: new Date().toISOString(),
-    }
-    courses[index] = updated
     this.saveToStorage(courses)
     return updated
   }

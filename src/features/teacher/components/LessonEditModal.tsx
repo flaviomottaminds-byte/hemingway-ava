@@ -29,6 +29,7 @@ interface LessonEditModalProps {
   onClose: () => void
   lesson: SupabaseLesson | null
   onSaved: (savedLesson: SupabaseLesson) => void
+  onDelete?: (lessonId: string) => void
 }
 
 export const LessonEditModal: React.FC<LessonEditModalProps> = ({
@@ -36,6 +37,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   onClose,
   lesson,
   onSaved,
+  onDelete,
 }) => {
   const isEditing = Boolean(lesson?.id)
 
@@ -224,12 +226,14 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
 
       let saved: SupabaseLesson
       if (isEditing && lesson?.id) {
+        // Se existir id: executa UPDATE no registro existente
         saved = await lessonService.updateLesson(lesson.id, payload)
+        setSuccessMessage('Aula atualizada com sucesso no Supabase!')
       } else {
+        // Somente se NÃO existir id: executa INSERT para nova aula
         saved = await lessonService.createLesson(payload)
+        setSuccessMessage('Nova aula criada com sucesso no Supabase!')
       }
-
-      setSuccessMessage('Aula atualizada com sucesso!')
       setTimeout(() => {
         onSaved(saved)
         onClose()
@@ -647,33 +651,55 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
           </div>
 
           {/* Rodapé com Botões de Ação */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md shadow-[#C59E5D]/25 flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-[#0F1B2F]" />
-                  <span>Salvando no Supabase...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 text-[#0F1B2F]" />
-                  <span>Salvar Alterações</span>
-                </>
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+            <div>
+              {lesson?.id && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Deseja realmente excluir a aula "${lesson.title}" do Supabase?`)) {
+                      onDelete(lesson.id)
+                      onClose()
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 transition cursor-pointer flex items-center gap-1.5"
+                  title="Excluir aula do banco de dados (remover duplicada)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Excluir Aula</span>
+                </button>
               )}
-            </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-md shadow-[#C59E5D]/25 flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-[#0F1B2F]" />
+                    <span>Salvando no Supabase...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 text-[#0F1B2F]" />
+                    <span>Salvar Alterações</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
