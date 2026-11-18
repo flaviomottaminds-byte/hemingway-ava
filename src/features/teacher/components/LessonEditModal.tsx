@@ -19,13 +19,18 @@ import {
   Plus,
   Presentation,
   Search,
+  HelpCircle,
+  Award,
+  Sparkles,
 } from 'lucide-react'
 import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline, UsefulLink } from '../../../types'
 import { lessonService, extractYouTubeId, formatGammaEmbedUrl } from '../../../services/lessonService'
 import { courseService } from '../../../services/courseService'
 import { curriculumService } from '../../../services/curriculumService'
+import { assessmentService } from '../../../services/assessmentService'
 import { extractTextFromPdf } from '../../../utils/pdfExtractor'
 import { StudentLessonPreviewModal } from './StudentLessonPreviewModal'
+import { SmartExamImporterModal } from './SmartExamImporterModal'
 
 interface LessonEditModalProps {
   isOpen: boolean
@@ -76,6 +81,11 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   const [isUploadingSlides, setIsUploadingSlides] = useState(false)
   const slidesFileInputRef = useRef<HTMLInputElement>(null)
 
+  // Gestão de Provas / Avaliações da Aula (Quiz Nativo e Google Drive / Forms)
+  const [examDriveUrl, setExamDriveUrl] = useState<string>('')
+  const [lessonQuestionCount, setLessonQuestionCount] = useState<number>(0)
+  const [isImporterOpenInModal, setIsImporterOpenInModal] = useState(false)
+
   // Estado de submissão e feedback
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -109,6 +119,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setSlidesUrlPt(lesson.slides_url_pt || lesson.slides_url || '')
       setSlidesUrlEn(lesson.slides_url_en || '')
       setSlidesUrlEs(lesson.slides_url_es || '')
+      setExamDriveUrl(lesson.exam_drive_url || '')
       setUsefulLinks(
         lesson.useful_links && Array.isArray(lesson.useful_links)
           ? JSON.parse(JSON.stringify(lesson.useful_links))
@@ -116,6 +127,15 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       )
       setErrorMessage(null)
       setSuccessMessage(null)
+
+      if (lesson.id) {
+        assessmentService
+          .countQuestionsByLessonId(lesson.id)
+          .then(setLessonQuestionCount)
+          .catch(() => setLessonQuestionCount(0))
+      } else {
+        setLessonQuestionCount(0)
+      }
     } else if (isOpen && !lesson) {
       setTitle('')
       setCourseId('')
@@ -129,6 +149,8 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       setSlidesUrlPt('')
       setSlidesUrlEn('')
       setSlidesUrlEs('')
+      setExamDriveUrl('')
+      setLessonQuestionCount(0)
       setUsefulLinks([])
       setErrorMessage(null)
       setSuccessMessage(null)
@@ -275,6 +297,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         slides_url_pt: slidesUrlPt || undefined,
         slides_url_en: slidesUrlEn || undefined,
         slides_url_es: slidesUrlEs || undefined,
+        exam_drive_url: examDriveUrl.trim() || undefined,
       }
 
       let saved: SupabaseLesson
@@ -757,6 +780,121 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
             />
           </div>
 
+          {/* 4. Avaliação / Quiz da Aula (Centralizado) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#C59E5D]/20 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#0F1B2F] text-[#C59E5D] shrink-0">
+                  <Award className="w-5 h-5 text-[#C59E5D]" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#0F1B2F] uppercase tracking-wide flex items-center gap-2">
+                    <span>4. Avaliação / Quiz da Aula</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0F1B2F] text-[#C59E5D]">
+                      Etapa 4 do AVA
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Centralize o Quiz Interativo Nativo e o link de prova do Google Drive/Forms da aula
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Modalidade 1: Quiz Interativo Nativo (AVA) */}
+              <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[#0F1B2F] flex items-center gap-1.5">
+                      <HelpCircle className="w-4 h-4 text-[#C59E5D]" />
+                      <span>Quiz Interativo Nativo (AVA)</span>
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        lessonQuestionCount > 0
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}
+                    >
+                      {lessonQuestionCount > 0
+                        ? `${lessonQuestionCount} ${lessonQuestionCount === 1 ? 'questão' : 'questões'} cadastradas`
+                        : '0 questões'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Questões de múltipla escolha com 5 opções (A a E), auto-correção e gabarito comentado oficial.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsImporterOpenInModal(true)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/40 transition shadow-xs cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#C59E5D]" />
+                  <span>Gerenciar / Importar Questões (.docx, .pdf ou Texto)</span>
+                </button>
+              </div>
+
+              {/* Modalidade 2: Prova / Atividade via Google Drive ou Google Forms */}
+              <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[#0F1B2F] flex items-center gap-1.5">
+                      <ExternalLink className="w-4 h-4 text-blue-600" />
+                      <span>Google Drive ou Google Forms</span>
+                    </span>
+                    {examDriveUrl.trim() && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                        Link Ativo
+                      </span>
+                    )}
+                  </div>
+                  <label className="block text-[11px] font-medium text-slate-600">
+                    Link da Prova / Formulário (Google Drive ou Google Forms):
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={examDriveUrl}
+                      onChange={(e) => setExamDriveUrl(e.target.value)}
+                      placeholder="https://docs.google.com/forms/d/... ou https://drive.google.com/..."
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C59E5D]"
+                    />
+                    {examDriveUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setExamDriveUrl('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 p-1"
+                        title="Limpar link"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-[10px] text-slate-400 truncate">
+                    Suporta formulários e documentos para preenchimento
+                  </span>
+                  {examDriveUrl.trim() && (
+                    <a
+                      href={examDriveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:underline shrink-0"
+                    >
+                      <span>Testar Link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 6. Links Úteis da Aula (Secção Dinâmica) */}
           <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -933,10 +1071,34 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
           slides_url_en: slidesUrlEn,
           slides_url_es: slidesUrlEs,
           useful_links: usefulLinks,
+          exam_drive_url: examDriveUrl,
           materials: lesson?.materials || [],
         }}
         courseTitle={courses.find((c) => c.id === courseId)?.title}
         disciplineName={disciplines.find((d) => d.id === disciplineId)?.name}
+      />
+
+      {/* Modal Importador Inteligente de Provas Vinculado à Aula */}
+      <SmartExamImporterModal
+        isOpen={isImporterOpenInModal}
+        onClose={() => {
+          setIsImporterOpenInModal(false)
+          if (lesson?.id) {
+            assessmentService.countQuestionsByLessonId(lesson.id).then(setLessonQuestionCount).catch(() => {})
+          }
+        }}
+        courses={courses}
+        disciplines={disciplines}
+        defaultCourseId={courseId}
+        defaultDisciplineId={disciplineId}
+        defaultLessonId={lesson?.id}
+        onSaveToDatabaseSuccess={(saved) => {
+          if (saved?.questions?.length) {
+            setLessonQuestionCount(saved.questions.length)
+          } else if (lesson?.id) {
+            assessmentService.countQuestionsByLessonId(lesson.id).then(setLessonQuestionCount).catch(() => {})
+          }
+        }}
       />
     </div>
   )

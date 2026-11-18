@@ -18,7 +18,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import type { SupabaseLesson, UsefulLink, AssessmentQuestion } from '../../../types'
-import { extractYouTubeId } from '../../../services/lessonService'
+import { extractYouTubeId, formatGoogleDriveEmbedUrl } from '../../../services/lessonService'
 import { assessmentService } from '../../../services/assessmentService'
 import { SlideViewer } from '../../classroom/components/SlideViewer'
 
@@ -42,6 +42,7 @@ export interface StudentLessonPreviewModalProps {
         slides_url_pt?: string
         slides_url_en?: string
         slides_url_es?: string
+        exam_drive_url?: string
         useful_links?: UsefulLink[]
         materials?: any[]
       }
@@ -405,7 +406,7 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
                 )}
               </button>
 
-              {/* Aba 4: Prova / Simulado da Aula */}
+              {/* Aba 4: Avaliação / Quiz da Aula */}
               <button
                 type="button"
                 onClick={() => setActiveMediaTab('quiz')}
@@ -415,11 +416,17 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
                 }`}
               >
-                <HelpCircle className="w-3.5 h-3.5 text-[#C59E5D]" />
-                <span>Prova & Simulado</span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-600 text-white">
-                  {quizQuestions.length} Questões
-                </span>
+                <Award className="w-3.5 h-3.5 text-[#C59E5D]" />
+                <span>Avaliação / Quiz</span>
+                {quizQuestions.length > 0 ? (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-600 text-white">
+                    {quizQuestions.length} Questões
+                  </span>
+                ) : (lesson as any)?.exam_drive_url ? (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#C59E5D] text-[#0F1B2F]">
+                    Google Drive
+                  </span>
+                ) : null}
               </button>
             </div>
           </div>
@@ -538,162 +545,219 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
             </div>
           )}
 
-          {/* ABA 4: PROVA / SIMULADO DA AULA (INTERATIVO COM GABARITO COMENTADO) */}
-          {activeMediaTab === 'quiz' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <div className="p-5 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
-                    <Award className="w-6 h-6 text-[#C59E5D]" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-extrabold text-[#0F1B2F]">
-                      Simulado Formativo da Aula
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Teste as 5 alternativas (A a E) e verifique o gabarito comentado com a justificativa pedagógica.
-                    </p>
-                  </div>
-                </div>
+          {/* ABA 4: PROVA / SIMULADO DA AULA (INTERATIVO COM GABARITO COMENTADO + GOOGLE DRIVE/FORMS) */}
+          {activeMediaTab === 'quiz' && (() => {
+            const currentExamDriveUrl = ((lesson as any)?.exam_drive_url as string | undefined)?.trim()
+            const driveEmbed = currentExamDriveUrl ? formatGoogleDriveEmbedUrl(currentExamDriveUrl) : null
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleResetQuiz}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reiniciar Respostas</span>
-                  </button>
-                </div>
-              </div>
-
-              {isLoadingQuiz ? (
-                <div className="p-10 text-center bg-white rounded-3xl border border-slate-200">
-                  <div className="w-6 h-6 border-2 border-[#C59E5D] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-xs text-slate-500 font-semibold">Carregando banco de questões da aula...</p>
-                </div>
-              ) : quizQuestions.length === 0 ? (
-                <div className="p-10 text-center bg-white rounded-3xl border border-dashed border-slate-300">
-                  <HelpCircle className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-                  <h4 className="text-sm font-bold text-slate-800">Nenhuma questão cadastrada para esta aula</h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Crie ou importe avaliações no Construtor de Avaliações / Provas do professor.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {quizQuestions.map((q, qIndex) => {
-                    const selectedOptId = selectedAnswers[q.id]
-                    const isAnswered = Boolean(selectedOptId || revealedFeedbacks[q.id])
-                    const selectedOption = q.options.find((opt) => opt.id === selectedOptId)
-                    const isCorrect = selectedOption?.is_correct ?? false
-
-                    return (
-                      <div
-                        key={q.id || qIndex}
-                        className="p-5 sm:p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4"
-                      >
-                        {/* Enunciado da Questão */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <span className="w-7 h-7 rounded-xl bg-[#0F1B2F] text-[#C59E5D] text-xs font-extrabold flex items-center justify-center shrink-0">
-                              {qIndex + 1}
-                            </span>
-                            <div>
-                              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                                Questão {qIndex + 1} • {q.points || 5} Pontos
-                              </span>
-                              <p className="text-sm sm:text-base font-bold text-[#0F1B2F] mt-1 leading-snug">
-                                {q.statement}
-                              </p>
-                            </div>
-                          </div>
-
-                          {isAnswered && (
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
-                                isCorrect
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : 'bg-red-100 text-red-800 border border-red-300'
-                              }`}
-                            >
-                              {isCorrect ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Acertou</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-3.5 h-3.5 text-red-600" />
-                                  <span>Incorreta</span>
-                                </>
-                              )}
-                            </span>
-                          )}
+            return (
+              <div className="space-y-6 animate-in fade-in duration-150">
+                {/* Card e Embed da Avaliação via Google Drive ou Google Forms */}
+                {currentExamDriveUrl && (
+                  <div className="p-5 sm:p-6 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
+                          <ExternalLink className="w-5 h-5 text-[#C59E5D]" />
                         </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-extrabold text-[#0F1B2F] flex items-center gap-2">
+                            <span>{driveEmbed?.isForm ? 'Avaliação Oficial via Google Forms' : 'Avaliação no Google Drive'}</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C59E5D] text-[#0F1B2F]">
+                              {driveEmbed?.isForm ? 'Formulário' : 'Documento'}
+                            </span>
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Preencha a avaliação oficial online ou visualize o documento interativo incorporado abaixo.
+                          </p>
+                        </div>
+                      </div>
 
-                        {/* Alternativas (A a E) */}
-                        <div className="space-y-2.5 pt-1">
-                          {q.options.map((opt) => {
-                            const isSelected = selectedOptId === opt.id
-                            let buttonStyle = 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                      <a
+                        href={currentExamDriveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/50 transition shadow-sm cursor-pointer self-start sm:self-auto shrink-0"
+                      >
+                        <span>Abrir Avaliação no {driveEmbed?.isForm ? 'Google Forms' : 'Google Drive'}</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-[#C59E5D]" />
+                      </a>
+                    </div>
 
-                            if (isAnswered) {
-                              if (opt.is_correct) {
-                                buttonStyle = 'bg-emerald-50 border-emerald-400 text-emerald-900 font-semibold ring-1 ring-emerald-300'
-                              } else if (isSelected && !opt.is_correct) {
-                                buttonStyle = 'bg-red-50 border-red-400 text-red-900 line-through'
-                              }
-                            } else if (isSelected) {
-                              buttonStyle = 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-200'
-                            }
+                    {driveEmbed?.embedUrl && (
+                      <div className="w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-inner" style={{ height: '650px' }}>
+                        <iframe
+                          src={driveEmbed.embedUrl}
+                          className="w-full h-full border-0"
+                          title="Avaliação Google Drive / Forms"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                            return (
-                              <button
-                                key={opt.id}
-                                type="button"
-                                onClick={() => handleSelectOption(q.id, opt.id)}
-                                className={`w-full p-3.5 rounded-2xl border text-left text-xs sm:text-sm flex items-center gap-3 transition-all cursor-pointer ${buttonStyle}`}
-                              >
+                {/* Quiz Interativo Nativo (AVA) */}
+                {quizQuestions.length > 0 && (
+                  <div className="space-y-5">
+                    <div className="p-5 bg-white rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D]">
+                          <Award className="w-6 h-6 text-[#C59E5D]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-extrabold text-[#0F1B2F]">
+                            Quiz Interativo da Aula (AVA)
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Teste as 5 alternativas (A a E) e verifique o gabarito comentado com a justificativa pedagógica.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleResetQuiz}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reiniciar Respostas</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5">
+                      {quizQuestions.map((q, qIndex) => {
+                        const selectedOptId = selectedAnswers[q.id]
+                        const isAnswered = Boolean(selectedOptId || revealedFeedbacks[q.id])
+                        const selectedOption = q.options.find((opt) => opt.id === selectedOptId)
+                        const isCorrect = selectedOption?.is_correct ?? false
+
+                        return (
+                          <div
+                            key={q.id || qIndex}
+                            className="p-5 sm:p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4"
+                          >
+                            {/* Enunciado da Questão */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <span className="w-7 h-7 rounded-xl bg-[#0F1B2F] text-[#C59E5D] text-xs font-extrabold flex items-center justify-center shrink-0">
+                                  {qIndex + 1}
+                                </span>
+                                <div>
+                                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    Questão {qIndex + 1} • {q.points || 5} Pontos
+                                  </span>
+                                  <p className="text-sm sm:text-base font-bold text-[#0F1B2F] mt-1 leading-snug">
+                                    {q.statement}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {isAnswered && (
                                 <span
-                                  className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
-                                    isSelected
-                                      ? 'bg-[#0F1B2F] text-[#C59E5D]'
-                                      : 'bg-white border border-slate-300 text-slate-700'
+                                  className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
+                                    isCorrect
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                      : 'bg-red-100 text-red-800 border border-red-300'
                                   }`}
                                 >
-                                  {opt.option_letter}
+                                  {isCorrect ? (
+                                    <>
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Acertou</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XCircle className="w-3.5 h-3.5 text-red-600" />
+                                      <span>Incorreta</span>
+                                    </>
+                                  )}
                                 </span>
-                                <span className="flex-1">{opt.text}</span>
-                                {isAnswered && opt.is_correct && (
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                )}
-                              </button>
-                            )
-                          })}
-                        </div>
-
-                        {/* Gabarito Comentado e Justificativa Pedagógica */}
-                        {isAnswered && (
-                          <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-1.5 animate-in fade-in duration-150">
-                            <div className="flex items-center gap-2 text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
-                              <BookOpen className="w-4 h-4 text-[#C59E5D]" />
-                              <span>Gabarito Comentado & Feedback Pedagógico</span>
+                              )}
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                              {q.feedback ||
-                                'A alternativa correta alinha-se com a diretriz federal estabelecida no currículo de imigrantes da Hemingway School.'}
-                            </p>
+
+                            {/* Alternativas (A a E) */}
+                            <div className="space-y-2.5 pt-1">
+                              {q.options.map((opt) => {
+                                const isSelected = selectedOptId === opt.id
+                                let buttonStyle = 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+
+                                if (isAnswered) {
+                                  if (opt.is_correct) {
+                                    buttonStyle = 'bg-emerald-50 border-emerald-400 text-emerald-900 font-semibold ring-1 ring-emerald-300'
+                                  } else if (isSelected && !opt.is_correct) {
+                                    buttonStyle = 'bg-red-50 border-red-400 text-red-900 line-through'
+                                  }
+                                } else if (isSelected) {
+                                  buttonStyle = 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-200'
+                                }
+
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => handleSelectOption(q.id, opt.id)}
+                                    className={`w-full p-3.5 rounded-2xl border text-left text-xs sm:text-sm flex items-center gap-3 transition-all cursor-pointer ${buttonStyle}`}
+                                  >
+                                    <span
+                                      className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                                        isSelected
+                                          ? 'bg-[#0F1B2F] text-[#C59E5D]'
+                                          : 'bg-white border border-slate-300 text-slate-700'
+                                      }`}
+                                    >
+                                      {opt.option_letter}
+                                    </span>
+                                    <span className="flex-1">{opt.text}</span>
+                                    {isAnswered && opt.is_correct && (
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    )}
+                                  </button>
+                                )
+                              })}
+                            </div>
+
+                            {/* Gabarito Comentado e Justificativa Pedagógica */}
+                            {isAnswered && (
+                              <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-1.5 animate-in fade-in duration-150">
+                                <div className="flex items-center gap-2 text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
+                                  <BookOpen className="w-4 h-4 text-[#C59E5D]" />
+                                  <span>Gabarito Comentado & Feedback Pedagógico</span>
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                                  {q.feedback ||
+                                    'A alternativa correta alinha-se com a diretriz federal estabelecida no currículo de imigrantes da Hemingway School.'}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Feedback caso não haja questões nem Google Drive */}
+                {!currentExamDriveUrl && quizQuestions.length === 0 && !isLoadingQuiz && (
+                  <div className="p-10 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+                    <HelpCircle className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                    <h4 className="text-sm font-bold text-slate-800">Nenhuma avaliação cadastrada para esta aula</h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Configure um Quiz Interativo ou cole o link de uma prova no Google Drive/Forms na edição da aula.
+                    </p>
+                  </div>
+                )}
+
+                {isLoadingQuiz && (
+                  <div className="p-10 text-center bg-white rounded-3xl border border-slate-200">
+                    <div className="w-6 h-6 border-2 border-[#C59E5D] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 font-semibold">Carregando banco de questões da aula...</p>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* 5. SEÇÕES COMPLEMENTARES: LINKS ÚTEIS E TEXTO DA AULA */}
           {usefulLinks.length > 0 && (

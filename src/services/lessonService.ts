@@ -6,12 +6,96 @@ const USEFUL_LINKS_MARKER_START = '<!-- USEFUL_LINKS_JSON:'
 const USEFUL_LINKS_MARKER_END = '-->'
 const SLIDES_MARKER_START = '<!-- SLIDES_JSON:'
 const SLIDES_MARKER_END = '-->'
+const EXAM_DRIVE_MARKER_START = '<!-- EXAM_DRIVE_JSON:'
+const EXAM_DRIVE_MARKER_END = '-->'
 
 export interface LessonSlidesConfig {
   slides_url?: string
   slides_url_pt?: string
   slides_url_en?: string
   slides_url_es?: string
+}
+
+/**
+ * Utilitário para formatar links do Google Drive e Google Forms para visualização e embed interativo
+ */
+export function formatGoogleDriveEmbedUrl(url: string): {
+  embedUrl: string | null
+  isForm: boolean
+  isDrive: boolean
+} {
+  if (!url) return { embedUrl: null, isForm: false, isDrive: false }
+  const trimmed = url.trim()
+
+  // Google Forms: /edit ou /viewform -> /viewform?embedded=true
+  if (trimmed.includes('docs.google.com/forms')) {
+    let clean = trimmed
+    if (clean.includes('/edit')) {
+      clean = clean.replace(/\/edit.*$/, '/viewform?embedded=true')
+    } else if (!clean.includes('embedded=true')) {
+      clean = clean.includes('?') ? `${clean}&embedded=true` : `${clean}?embedded=true`
+    }
+    return { embedUrl: clean, isForm: true, isDrive: false }
+  }
+
+  // Google Drive File (PDF, Docs, etc.): /view -> /preview
+  if (trimmed.includes('drive.google.com/file/d/')) {
+    const match = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+    if (match && match[1]) {
+      return { embedUrl: `https://drive.google.com/file/d/${match[1]}/preview`, isForm: false, isDrive: true }
+    }
+  }
+
+  // Google Docs
+  if (trimmed.includes('docs.google.com/document/d/')) {
+    const match = trimmed.match(/\/document\/d\/([a-zA-Z0-9_-]+)/)
+    if (match && match[1]) {
+      return { embedUrl: `https://docs.google.com/document/d/${match[1]}/preview`, isForm: false, isDrive: true }
+    }
+  }
+
+  // Google Sheets
+  if (trimmed.includes('docs.google.com/spreadsheets/d/')) {
+    const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
+    if (match && match[1]) {
+      return { embedUrl: `https://docs.google.com/spreadsheets/d/${match[1]}/preview`, isForm: false, isDrive: true }
+    }
+  }
+
+  return {
+    embedUrl: trimmed,
+    isForm: trimmed.includes('forms'),
+    isDrive: trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com'),
+  }
+}
+
+export function extractExamDriveFromContent(content: string): { exam_drive_url?: string; cleanContent: string } {
+  if (!content) return { cleanContent: '' }
+  const startIdx = content.indexOf(EXAM_DRIVE_MARKER_START)
+  if (startIdx === -1) return { cleanContent: content }
+  const endIdx = content.indexOf(EXAM_DRIVE_MARKER_END, startIdx)
+  if (endIdx === -1) return { cleanContent: content }
+
+  const jsonStr = content.substring(startIdx + EXAM_DRIVE_MARKER_START.length, endIdx).trim()
+  const cleanContent = (content.substring(0, startIdx) + content.substring(endIdx + EXAM_DRIVE_MARKER_END.length)).trim()
+  try {
+    const parsed = JSON.parse(jsonStr)
+    if (parsed && typeof parsed === 'object') {
+      return { exam_drive_url: parsed.exam_drive_url, cleanContent }
+    }
+  } catch (e) {
+    console.warn('Erro ao decodificar exam_drive do content:', e)
+  }
+  return { cleanContent }
+}
+
+export function embedExamDriveInContent(content: string, examDriveUrl?: string): string {
+  const { cleanContent } = extractExamDriveFromContent(content || '')
+  if (!examDriveUrl || !examDriveUrl.trim()) {
+    return cleanContent
+  }
+  const jsonStr = JSON.stringify({ exam_drive_url: examDriveUrl.trim() })
+  return `${cleanContent}\n\n${EXAM_DRIVE_MARKER_START}${jsonStr}${EXAM_DRIVE_MARKER_END}`
 }
 
 /**
@@ -163,6 +247,10 @@ export interface CreateLessonDTO {
   slides_url_pt?: string
   slides_url_en?: string
   slides_url_es?: string
+  exam_drive_url?: string
+  exam_drive_url_pt?: string
+  exam_drive_url_en?: string
+  exam_drive_url_es?: string
 }
 
 class SupabaseLessonService {
@@ -227,7 +315,8 @@ class SupabaseLessonService {
           const youtubeId = extractYouTubeId(videoUrl) || undefined
           const rawContent = String(item.content || item.content_text || '')
           const { links: extractedLinks, cleanContent: contentWithoutLinks } = extractUsefulLinksFromContent(rawContent)
-          const { slides: extractedSlides, cleanContent } = extractSlidesFromContent(contentWithoutLinks)
+          const { exam_drive_url: extractedExamDriveUrl, cleanContent: contentWithoutExam } = extractExamDriveFromContent(contentWithoutLinks)
+          const { slides: extractedSlides, cleanContent } = extractSlidesFromContent(contentWithoutExam)
           const cachedMatch = cached.find((c) => c.id === item.id)
           const usefulLinks: UsefulLink[] = Array.isArray(item.useful_links)
             ? (item.useful_links as UsefulLink[])
@@ -260,6 +349,12 @@ class SupabaseLessonService {
             cachedMatch?.slides_url_es ||
             undefined
 
+          const examDriveUrl =
+            (item.exam_drive_url as string) ||
+            extractedExamDriveUrl ||
+            cachedMatch?.exam_drive_url ||
+            undefined
+
           return {
             id: String(item.id || `les-supa-${idx}`),
             course_id: String(item.course_id || ''),
@@ -278,6 +373,10 @@ class SupabaseLessonService {
             slides_url_pt: slidesUrlPt,
             slides_url_en: slidesUrlEn,
             slides_url_es: slidesUrlEs,
+            exam_drive_url: examDriveUrl,
+            exam_drive_url_pt: (item.exam_drive_url_pt as string) || examDriveUrl || undefined,
+            exam_drive_url_en: (item.exam_drive_url_en as string) || cachedMatch?.exam_drive_url_en || undefined,
+            exam_drive_url_es: (item.exam_drive_url_es as string) || cachedMatch?.exam_drive_url_es || undefined,
             created_at: String(item.created_at || new Date().toISOString()),
           }
         })
@@ -440,7 +539,8 @@ class SupabaseLessonService {
   async createLesson(dto: CreateLessonDTO): Promise<SupabaseLesson> {
     const youtubeId = extractYouTubeId(dto.video_url) || undefined
     const contentWithLinks = embedUsefulLinksInContent(dto.content_text, dto.useful_links)
-    const contentWithAll = embedSlidesInContent(contentWithLinks, {
+    const contentWithExam = embedExamDriveInContent(contentWithLinks, dto.exam_drive_url)
+    const contentWithAll = embedSlidesInContent(contentWithExam, {
       slides_url: dto.slides_url || dto.slides_url_pt,
       slides_url_pt: dto.slides_url_pt || dto.slides_url,
       slides_url_en: dto.slides_url_en,
@@ -465,6 +565,10 @@ class SupabaseLessonService {
       slides_url_pt: dto.slides_url_pt || dto.slides_url,
       slides_url_en: dto.slides_url_en,
       slides_url_es: dto.slides_url_es,
+      exam_drive_url: dto.exam_drive_url,
+      exam_drive_url_pt: dto.exam_drive_url_pt || dto.exam_drive_url,
+      exam_drive_url_en: dto.exam_drive_url_en,
+      exam_drive_url_es: dto.exam_drive_url_es,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -499,12 +603,26 @@ class SupabaseLessonService {
       if (dto.slides_url_es) {
         insertPayload.slides_url_es = dto.slides_url_es
       }
+      if (dto.exam_drive_url) {
+        insertPayload.exam_drive_url = dto.exam_drive_url.trim()
+      }
 
       let { data, error } = await supabase
         .from('lessons')
         .insert([insertPayload])
         .select()
         .single()
+
+      if (error && (error.code === '42703' || error.message?.includes('exam_drive_url'))) {
+        delete insertPayload.exam_drive_url
+        const retry = await supabase
+          .from('lessons')
+          .insert([insertPayload])
+          .select()
+          .single()
+        data = retry.data
+        error = retry.error
+      }
 
       if (error && (error.code === '42703' || error.message?.includes('slides_url'))) {
         delete insertPayload.slides_url
@@ -571,7 +689,10 @@ class SupabaseLessonService {
     const effectiveLinks =
       dto.useful_links !== undefined ? dto.useful_links : existing?.useful_links || []
     const contentWithLinks = embedUsefulLinksInContent(effectiveContent, effectiveLinks)
-    const contentWithAll = embedSlidesInContent(contentWithLinks, {
+    const effectiveExamDrive =
+      dto.exam_drive_url !== undefined ? dto.exam_drive_url : existing?.exam_drive_url
+    const contentWithExam = embedExamDriveInContent(contentWithLinks, effectiveExamDrive)
+    const contentWithAll = embedSlidesInContent(contentWithExam, {
       slides_url: dto.slides_url !== undefined ? dto.slides_url : existing?.slides_url,
       slides_url_pt: dto.slides_url_pt !== undefined ? dto.slides_url_pt : existing?.slides_url_pt,
       slides_url_en: dto.slides_url_en !== undefined ? dto.slides_url_en : existing?.slides_url_en,
@@ -586,7 +707,8 @@ class SupabaseLessonService {
       dto.slides_url !== undefined ||
       dto.slides_url_pt !== undefined ||
       dto.slides_url_en !== undefined ||
-      dto.slides_url_es !== undefined
+      dto.slides_url_es !== undefined ||
+      dto.exam_drive_url !== undefined
     ) {
       updatePayload.content = contentWithAll
     }
@@ -610,12 +732,24 @@ class SupabaseLessonService {
     if (dto.slides_url_es !== undefined) {
       updatePayload.slides_url_es = dto.slides_url_es || null
     }
+    if (dto.exam_drive_url !== undefined) {
+      updatePayload.exam_drive_url = dto.exam_drive_url?.trim() || null
+    }
 
     try {
       let { error } = await supabase
         .from('lessons')
         .update(updatePayload)
         .eq('id', id)
+
+      if (error && (error.code === '42703' || error.message?.includes('exam_drive_url')) && updatePayload.exam_drive_url !== undefined) {
+        delete updatePayload.exam_drive_url
+        const retry = await supabase
+          .from('lessons')
+          .update(updatePayload)
+          .eq('id', id)
+        error = retry.error
+      }
 
       if (error && (error.code === '42703' || error.message?.includes('slides_url'))) {
         delete updatePayload.slides_url
@@ -673,6 +807,10 @@ class SupabaseLessonService {
         slides_url_pt: dto.slides_url_pt !== undefined ? dto.slides_url_pt : existing?.slides_url_pt,
         slides_url_en: dto.slides_url_en !== undefined ? dto.slides_url_en : existing?.slides_url_en,
         slides_url_es: dto.slides_url_es !== undefined ? dto.slides_url_es : existing?.slides_url_es,
+        exam_drive_url: dto.exam_drive_url !== undefined ? dto.exam_drive_url : existing?.exam_drive_url,
+        exam_drive_url_pt: dto.exam_drive_url_pt !== undefined ? dto.exam_drive_url_pt : existing?.exam_drive_url_pt,
+        exam_drive_url_en: dto.exam_drive_url_en !== undefined ? dto.exam_drive_url_en : existing?.exam_drive_url_en,
+        exam_drive_url_es: dto.exam_drive_url_es !== undefined ? dto.exam_drive_url_es : existing?.exam_drive_url_es,
         video_youtube_id: youtubeId,
         updated_at: new Date().toISOString(),
       }
@@ -696,6 +834,10 @@ class SupabaseLessonService {
         slides_url_pt: dto.slides_url_pt || dto.slides_url || existing?.slides_url_pt,
         slides_url_en: dto.slides_url_en || existing?.slides_url_en,
         slides_url_es: dto.slides_url_es || existing?.slides_url_es,
+        exam_drive_url: dto.exam_drive_url !== undefined ? dto.exam_drive_url : existing?.exam_drive_url,
+        exam_drive_url_pt: dto.exam_drive_url_pt || dto.exam_drive_url || existing?.exam_drive_url_pt,
+        exam_drive_url_en: dto.exam_drive_url_en || existing?.exam_drive_url_en,
+        exam_drive_url_es: dto.exam_drive_url_es || existing?.exam_drive_url_es,
         created_at: existing?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }

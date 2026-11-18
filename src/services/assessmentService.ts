@@ -245,6 +245,24 @@ class SupabaseAssessmentService {
   }
 
   /**
+   * Busca a avaliação vinculada diretamente a uma aula (lesson_id)
+   */
+  async getAssessmentByLessonId(lessonId: string): Promise<SupabaseAssessment | null> {
+    if (!lessonId) return null
+    await new Promise((r) => setTimeout(r, 80))
+    const list = this.loadAssessments()
+    return list.find((a) => a.lesson_id === lessonId) || null
+  }
+
+  /**
+   * Retorna a contagem de questões cadastradas para uma aula
+   */
+  async countQuestionsByLessonId(lessonId: string): Promise<number> {
+    const assessment = await this.getAssessmentByLessonId(lessonId)
+    return assessment?.questions?.length || 0
+  }
+
+  /**
    * Simula gravação relacional nas tabelas assessments, questions e options:
    */
   async createAssessment(dto: CreateAssessmentDTO): Promise<SupabaseAssessment> {

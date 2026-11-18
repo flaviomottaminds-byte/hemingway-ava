@@ -147,6 +147,10 @@ export interface SupabaseLesson {
   slides_url_pt?: string
   slides_url_en?: string
   slides_url_es?: string
+  exam_drive_url?: string
+  exam_drive_url_pt?: string
+  exam_drive_url_en?: string
+  exam_drive_url_es?: string
   created_at: string
   updated_at?: string
 }
@@ -232,6 +236,10 @@ export interface Lesson {
   slides_url_pt?: string
   slides_url_en?: string
   slides_url_es?: string
+  exam_drive_url?: string
+  exam_drive_url_pt?: string
+  exam_drive_url_en?: string
+  exam_drive_url_es?: string
 }
 
 export interface Course {
