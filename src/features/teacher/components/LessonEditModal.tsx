@@ -18,12 +18,14 @@ import {
   Link2,
   Plus,
   Presentation,
+  Search,
 } from 'lucide-react'
 import type { SupabaseLesson, SupabaseCourse, SupabaseDiscipline, UsefulLink } from '../../../types'
 import { lessonService, extractYouTubeId, formatGammaEmbedUrl } from '../../../services/lessonService'
 import { courseService } from '../../../services/courseService'
 import { curriculumService } from '../../../services/curriculumService'
 import { extractTextFromPdf } from '../../../utils/pdfExtractor'
+import { StudentLessonPreviewModal } from './StudentLessonPreviewModal'
 
 interface LessonEditModalProps {
   isOpen: boolean
@@ -78,6 +80,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   // Carrega opções de cursos e disciplinas
   useEffect(() => {
@@ -320,13 +323,28 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-300 hover:text-white rounded-xl hover:bg-[#1C2E4A] transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2.5">
+            {/* Botão no topo do modal: Pré-visualizar Aula como Aluno */}
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1C2E4A] hover:bg-[#253e63] text-[#C59E5D] border border-[#C59E5D]/40 transition shadow-xs cursor-pointer"
+              title="Pré-visualizar Aula como Aluno"
+            >
+              <Search className="w-3.5 h-3.5 text-[#C59E5D]" />
+              <span className="hidden sm:inline">Pré-visualizar Aula como Aluno</span>
+              <span className="sm:hidden">Ver como Aluno</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-300 hover:text-white rounded-xl hover:bg-[#1C2E4A] transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Mensagens de Alerta */}
@@ -894,6 +912,32 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Modal de Simulação da Sala de Aula do Aluno */}
+      <StudentLessonPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        lesson={{
+          id: lesson?.id,
+          title: title.trim() || 'Aula sem Título',
+          course_id: courseId,
+          discipline_id: disciplineId,
+          sequence_order: Number(sequenceOrder) || 1,
+          duration_minutes: Number(durationMinutes) || 20,
+          content_text: contentText,
+          video_url: videoUrl,
+          pdf_url: pdfUrl,
+          pdf_name: pdfName,
+          slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs,
+          slides_url_pt: slidesUrlPt,
+          slides_url_en: slidesUrlEn,
+          slides_url_es: slidesUrlEs,
+          useful_links: usefulLinks,
+          materials: lesson?.materials || [],
+        }}
+        courseTitle={courses.find((c) => c.id === courseId)?.title}
+        disciplineName={disciplines.find((d) => d.id === disciplineId)?.name}
+      />
     </div>
   )
 }

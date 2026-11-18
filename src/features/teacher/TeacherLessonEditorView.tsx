@@ -51,6 +51,7 @@ import type { CreateLessonDTO } from '../../services/lessonService'
 import { extractTextFromPdf } from '../../utils/pdfExtractor'
 import { LessonEditModal } from './components/LessonEditModal'
 import { SmartExamImporterModal } from './components/SmartExamImporterModal'
+import { StudentLessonPreviewModal } from './components/StudentLessonPreviewModal'
 
 interface TeacherLessonEditorViewProps {
   lessonId?: string | null
@@ -92,6 +93,37 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
   // Modal de Edição Rápida
   const [selectedLessonForModal, setSelectedLessonForModal] = useState<SupabaseLesson | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  // Modal de Pré-visualização do Aluno
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [selectedLessonForPreview, setSelectedLessonForPreview] = useState<any>(null)
+
+  const handlePreviewAsStudent = (lessonItem: SupabaseLesson) => {
+    setSelectedLessonForPreview(lessonItem)
+    setIsPreviewModalOpen(true)
+  }
+
+  const handlePreviewFromFullEditor = () => {
+    setSelectedLessonForPreview({
+      id: editingLesson?.id || lessonId,
+      title: title.trim() || 'Aula sem Título',
+      course_id: selectedCourseId,
+      discipline_id: selectedDisciplineId,
+      sequence_order: Number(sequenceOrder) || 1,
+      duration_minutes: Number(durationMinutes) || 20,
+      content_text: contentText,
+      video_url: videoUrl,
+      pdf_url: pdfUrl,
+      pdf_name: pdfName,
+      slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs,
+      slides_url_pt: slidesUrlPt,
+      slides_url_en: slidesUrlEn,
+      slides_url_es: slidesUrlEs,
+      useful_links: usefulLinks,
+      materials: materials,
+    })
+    setIsPreviewModalOpen(true)
+  }
 
   // Modal do Importador de Provas (Word / PDF / Texto)
   const [isImporterOpen, setIsImporterOpen] = useState(false)
@@ -788,6 +820,17 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
 
                     {/* Direita: Botões de Ação com Destaque Dourado/Marinho no "Editar" */}
                     <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
+                      {/* Botão de Lupa: Visualizar na Visão do Aluno */}
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewAsStudent(item)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#C59E5D] border border-[#C59E5D]/50 shadow-xs transition-all transform active:scale-95 cursor-pointer"
+                        title="Visualizar na Visão do Aluno"
+                      >
+                        <Search className="w-3.5 h-3.5 text-[#C59E5D]" />
+                        <span className="hidden sm:inline">Ver como Aluno</span>
+                      </button>
+
                       {/* Botão EDITAR em Destaque Dourado (#C59E5D) / Azul Marinho (#0F1B2F) */}
                       <button
                         type="button"
@@ -901,6 +944,17 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
                     <span>Excluir</span>
                   </button>
                 )}
+
+                {/* Botão de Pré-visualização na visão do aluno */}
+                <button
+                  type="button"
+                  onClick={handlePreviewFromFullEditor}
+                  className="px-4 py-2.5 bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#C59E5D] text-xs font-bold rounded-xl border border-[#C59E5D]/50 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer transform active:scale-95"
+                  title="Visualizar na Visão do Aluno"
+                >
+                  <Search className="w-3.5 h-3.5 text-[#C59E5D]" />
+                  <span>Ver como Aluno</span>
+                </button>
 
                 <button
                   type="button"
@@ -1893,6 +1947,15 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         onSaveToDatabaseSuccess={(saved) => {
           showToast(`Avaliação "${saved.title}" salva no Supabase com sucesso!`)
         }}
+      />
+
+      {/* Modal de Simulação da Sala de Aula do Aluno (Visualizar como Aluno) */}
+      <StudentLessonPreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        lesson={selectedLessonForPreview}
+        courseTitle={currentCourse?.title}
+        disciplineName={currentDiscipline?.name}
       />
     </div>
   )
