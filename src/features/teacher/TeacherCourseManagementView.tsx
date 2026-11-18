@@ -63,11 +63,6 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
 
   // Notificação toast temporária
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [supabaseStatus, setSupabaseStatus] = useState<{
-    isLive: boolean
-    message: string | null
-    error: string | null
-  }>({ isLive: false, message: null, error: null })
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
@@ -80,23 +75,9 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
     try {
       const res = await courseService.getCoursesWithStatus()
       setCourses(res.data)
-      if (res.isLive) {
-        setSupabaseStatus({
-          isLive: true,
-          message: `Conectado ao Supabase: ${res.data.length} curso(s) carregado(s) em tempo real da tabela 'courses'`,
-          error: null,
-        })
-      } else if (res.error) {
-        setSupabaseStatus({
-          isLive: false,
-          message: null,
-          error: res.error,
-        })
-      }
     } catch (err) {
       console.error('Erro ao buscar cursos do Supabase:', err)
       const msg = err instanceof Error ? err.message : 'Falha na conexão'
-      setSupabaseStatus({ isLive: false, message: null, error: msg })
       showToast(`Erro ao sincronizar com Supabase: ${msg}`)
     } finally {
       setLoading(false)
@@ -242,42 +223,6 @@ export const TeacherCourseManagementView: React.FC<TeacherCourseManagementViewPr
         <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700 animate-in slide-in-from-top-4 duration-200">
           <Database className="w-4 h-4 text-emerald-400" />
           <span className="text-xs font-medium">{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Alerta de Status da Conexão com o Supabase Real */}
-      {supabaseStatus.isLive && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl flex items-center justify-between gap-2 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-bold">Supabase PostgreSQL Conectado:</span>
-            <span>{supabaseStatus.message}</span>
-          </div>
-          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-emerald-200/60 text-emerald-900 shrink-0">
-            Live Database
-          </span>
-        </div>
-      )}
-
-      {supabaseStatus.error && (
-        <div className="p-3.5 bg-amber-50/90 border border-amber-300 text-amber-900 text-xs rounded-2xl flex items-start justify-between gap-3 shadow-xs">
-          <div className="flex items-start gap-2.5">
-            <Database className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block text-amber-950">Aviso de Sincronização Supabase:</span>
-              <span className="text-amber-900 leading-relaxed">{supabaseStatus.error}</span>
-              <p className="text-[11px] text-amber-800 mt-1">
-                Os dados foram carregados da camada de persistência com o curso real. Para leitura irrestrita da tabela, habilite a policy de SELECT para o role <code className="bg-amber-200/70 px-1 py-0.5 rounded font-mono">anon</code> no painel do Supabase.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={fetchCourses}
-            className="text-[11px] font-bold text-amber-900 hover:underline shrink-0 bg-amber-200/80 px-2.5 py-1 rounded-xl transition"
-          >
-            Reconectar
-          </button>
         </div>
       )}
 

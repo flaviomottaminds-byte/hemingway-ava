@@ -1,19 +1,13 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Bell,
   Search,
   Menu,
-  GraduationCap,
-  LayoutDashboard,
-  Video,
   LogOut,
   Sparkles,
-  ShieldAlert,
-  Trash2,
 } from 'lucide-react'
 import { LanguageSelector } from '../common/LanguageSelector'
-import { WipeDatabaseModal } from '../dev/WipeDatabaseModal'
 import type { UserProfile, ActiveView } from '../../types'
 
 interface TopbarProps {
@@ -29,8 +23,6 @@ interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({
   user,
-  activeView,
-  onSelectView,
   onToggleSidebar,
   onNavigateHome,
   onLogout,
@@ -38,7 +30,6 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleRole,
 }) => {
   const { t } = useTranslation()
-  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false)
 
   let ringColor = 'ring-[#C59E5D]/60'
   let roleBadgeClass = 'bg-[#C59E5D]/20 text-[#C59E5D] border border-[#C59E5D]/40'
@@ -91,67 +82,6 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
         </div>
 
-        {/* Centro-Esquerda: Barra de Navegação Rápida Global */}
-        {onSelectView && (
-          <nav className="hidden md:flex items-center gap-1 bg-[#0A1220]/80 p-1 rounded-xl border border-[#1C2E4A] shadow-xs">
-            <button
-              type="button"
-              onClick={() => onSelectView('dashboard')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                activeView === 'dashboard'
-                  ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
-                  : 'text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/60'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Painel de Cursos</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSelectView('classroom')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                activeView === 'classroom'
-                  ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
-                  : 'text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/60'
-              }`}
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>Sala de Aula</span>
-            </button>
-
-            {currentRole === 'teacher' && (
-              <button
-                type="button"
-                onClick={() => onSelectView('teacher-courses')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                  activeView?.startsWith('teacher')
-                    ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
-                    : 'text-[#C59E5D] hover:bg-[#1C2E4A]/80'
-                }`}
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>Meus Cursos</span>
-              </button>
-            )}
-
-            {currentRole === 'admin' && (
-              <button
-                type="button"
-                onClick={() => onSelectView('teacher-courses')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                  activeView?.startsWith('teacher')
-                    ? 'bg-[#C59E5D] text-[#0F1B2F] shadow-sm'
-                    : 'text-[#FAF8F2]/80 hover:text-[#C59E5D] hover:bg-[#1C2E4A]/80'
-                }`}
-              >
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>Gestão Global</span>
-              </button>
-            )}
-          </nav>
-        )}
-
         {/* Centro: Barra de Pesquisa */}
         <div className="hidden xl:flex flex-1 max-w-xs mx-2">
           <div className="relative w-full">
@@ -166,7 +96,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         </div>
 
-        {/* Direita: Seletor de Idioma, Notificações, Perfil e Alternador */}
+        {/* Direita: Seletor de Idioma, Notificações, Perfil e Logout */}
         <div className="flex items-center gap-2.5">
           {/* Seletor de Idioma i18n instantâneo */}
           <LanguageSelector variant="dropdown" />
@@ -222,26 +152,8 @@ export const Topbar: React.FC<TopbarProps> = ({
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Botão Admin para Zerar Banco de Dados */}
-          {currentRole === 'admin' && (
-            <button
-              type="button"
-              onClick={() => setIsWipeModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 flex items-center gap-1.5 transition cursor-pointer shadow-xs ml-1"
-              title="Zerar todos os dados de teste no Supabase"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-400" />
-              <span className="hidden sm:inline">Zerar Dados</span>
-            </button>
-          )}
         </div>
       </div>
-
-      <WipeDatabaseModal
-        isOpen={isWipeModalOpen}
-        onClose={() => setIsWipeModalOpen(false)}
-      />
     </header>
   )
 }
