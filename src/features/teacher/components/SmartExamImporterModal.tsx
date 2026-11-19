@@ -159,19 +159,31 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
       const targetDisciplineId = defaultDisciplineId || activeDisciplineId || (disciplines.length > 0 ? disciplines[0].id : '')
       const targetLessonId = defaultLessonId || undefined
 
-      const saved = await assessmentService.createAssessment({
-        course_id: targetCourseId,
-        discipline_id: targetDisciplineId,
-        scope_type: targetLessonId ? 'lesson_specific' : 'discipline_final',
-        lesson_id: targetLessonId,
-        title: previewTitle.trim() || 'Avaliação Importada',
-        description: 'Banco de questões com gabarito comentado importado pelo Importador Inteligente da Hemingway School.',
-        max_score: parsedQuestions.length,
-        passing_score: Math.max(1, Math.round(parsedQuestions.length * 0.7)),
-        max_attempts: 3,
-        time_limit_minutes: 45,
-        questions: parsedQuestions,
-      })
+      let saved: SupabaseAssessment
+      if (targetLessonId) {
+        const res = await assessmentService.saveLessonQuizQuestions({
+          lesson_id: targetLessonId,
+          course_id: targetCourseId,
+          discipline_id: targetDisciplineId,
+          lesson_title: previewTitle.trim() || 'Avaliação Importada',
+          questions: parsedQuestions,
+        })
+        if (!res) throw new Error('Falha ao vincular questões à aula.')
+        saved = res
+      } else {
+        saved = await assessmentService.createAssessment({
+          course_id: targetCourseId,
+          discipline_id: targetDisciplineId,
+          scope_type: 'discipline_final',
+          title: previewTitle.trim() || 'Avaliação Importada',
+          description: 'Banco de questões com gabarito comentado importado pelo Importador Inteligente da Hemingway School.',
+          max_score: parsedQuestions.length,
+          passing_score: Math.max(1, Math.round(parsedQuestions.length * 0.7)),
+          max_attempts: 3,
+          time_limit_minutes: 45,
+          questions: parsedQuestions,
+        })
+      }
 
       setSaveSuccess(true)
       if (onSaveToDatabaseSuccess) {
@@ -192,7 +204,7 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-[#EADBBE] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
         {/* Cabeçalho do Modal */}
         <div className="p-5 sm:p-6 bg-[#0F1B2F] text-[#FAF8F2] flex items-center justify-between border-b border-[#C59E5D]/30 shrink-0">

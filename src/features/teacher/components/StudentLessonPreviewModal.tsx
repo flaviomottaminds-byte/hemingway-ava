@@ -63,6 +63,7 @@ export interface StudentLessonPreviewModalProps {
         useful_links?: UsefulLink[]
         usefulLinks?: UsefulLink[]
         materials?: any[]
+        questions?: AssessmentQuestion[]
       }
     | null
   courseTitle?: string
@@ -111,6 +112,9 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
 
   const rawMaterials = raw.materials
   const materials: any[] = Array.isArray(rawMaterials) ? rawMaterials.filter(Boolean) : []
+  const inlineQuestions: AssessmentQuestion[] | null = Array.isArray(raw.questions)
+    ? raw.questions
+    : null
 
   // Todos os Hooks no topo (NUNCA após um return condicional)
   const [previewLang, setPreviewLang] = useState<'pt' | 'en' | 'es'>('pt')
@@ -153,9 +157,19 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
     }
   }, [isOpen])
 
-  // Carrega questões reais da avaliação associadas à aula ou disciplina no Supabase
+  // Carrega questões reais da avaliação associadas à aula (prioriza as questões em edição no formulário da aula)
   useEffect(() => {
     if (!isOpen || !lesson) return
+
+    setSelectedAnswers({})
+    setRevealedFeedbacks({})
+
+    if (inlineQuestions && inlineQuestions.length > 0) {
+      setQuizQuestions(inlineQuestions)
+      setQuizTitle(`Quiz — ${lessonTitle}`)
+      setIsLoadingQuiz(false)
+      return
+    }
 
     setIsLoadingQuiz(true)
     assessmentService
@@ -179,10 +193,7 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
       .finally(() => {
         setIsLoadingQuiz(false)
       })
-
-    setSelectedAnswers({})
-    setRevealedFeedbacks({})
-  }, [isOpen, lessonId, courseId, disciplineId])
+  }, [isOpen, lessonId, courseId, disciplineId, inlineQuestions, lessonTitle])
 
   // Trilha paginada passo a passo (Vídeo -> Slides Gamma / Apostila -> Links Úteis -> Prova/Quiz)
   const activeStages = useMemo(() => {

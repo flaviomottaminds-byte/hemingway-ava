@@ -438,6 +438,55 @@ class SupabaseAssessmentService {
   }
 
   /**
+   * Salva ou atualiza as questões do Quiz vinculadas diretamente ao id de uma aula (sem duplicar registros)
+   */
+  async saveLessonQuizQuestions(params: {
+    lesson_id: string
+    course_id: string
+    discipline_id: string
+    lesson_title: string
+    questions: AssessmentQuestion[]
+  }): Promise<SupabaseAssessment | null> {
+    if (!params.lesson_id) return null
+    const existing = await this.getAssessmentByLessonId(params.lesson_id)
+
+    if (!params.questions || params.questions.length === 0) {
+      if (existing) {
+        await this.deleteAssessment(existing.id)
+      }
+      return null
+    }
+
+    const cleanTitle = params.lesson_title?.trim() || 'Aula'
+    if (existing) {
+      return await this.updateAssessment(existing.id, {
+        course_id: params.course_id || existing.course_id,
+        discipline_id: params.discipline_id || existing.discipline_id,
+        scope_type: 'lesson_specific',
+        lesson_id: params.lesson_id,
+        title: existing.title || `Quiz — ${cleanTitle}`,
+        max_score: params.questions.length,
+        passing_score: Math.max(1, Math.round(params.questions.length * 0.7)),
+        questions: params.questions,
+      })
+    }
+
+    return await this.createAssessment({
+      course_id: params.course_id,
+      discipline_id: params.discipline_id,
+      scope_type: 'lesson_specific',
+      lesson_id: params.lesson_id,
+      title: `Quiz — ${cleanTitle}`,
+      description: `Avaliação vinculada automaticamente à aula: ${cleanTitle}`,
+      max_score: params.questions.length,
+      passing_score: Math.max(1, Math.round(params.questions.length * 0.7)),
+      max_attempts: 3,
+      time_limit_minutes: 45,
+      questions: params.questions,
+    })
+  }
+
+  /**
    * Cria ou substitui avaliação no Supabase (evita duplicatas se já existir avaliação para a mesma aula específica)
    */
   async createAssessment(dto: CreateAssessmentDTO): Promise<SupabaseAssessment> {
