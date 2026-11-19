@@ -37,9 +37,6 @@ import {
   Link2,
   Presentation,
   Award,
-  HelpCircle,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react'
 import type {
   SupabaseCourse,
@@ -47,17 +44,13 @@ import type {
   SupabaseLesson,
   LessonAttachment,
   UsefulLink,
-  AssessmentQuestion,
 } from '../../types'
 import { courseService } from '../../services/courseService'
 import { curriculumService } from '../../services/curriculumService'
 import { lessonService, extractYouTubeId, formatGammaEmbedUrl } from '../../services/lessonService'
-import { assessmentService } from '../../services/assessmentService'
-import { LESSON_1_1_QUESTIONS } from '../../data/lesson1_1_questions'
 import type { CreateLessonDTO } from '../../services/lessonService'
 import { extractTextFromPdf } from '../../utils/pdfExtractor'
 import { LessonEditModal } from './components/LessonEditModal'
-import { SmartExamImporterModal } from './components/SmartExamImporterModal'
 import { StudentLessonPreviewModal } from './components/StudentLessonPreviewModal'
 
 interface TeacherLessonEditorViewProps {
@@ -145,7 +138,6 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
       useful_links: usefulLinks,
       usefulLinks: usefulLinks,
       materials: materials,
-      questions: lessonQuestions,
     }
   }
 
@@ -154,86 +146,8 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     setIsPreviewModalOpen(true)
   }
 
-  // Modal do Importador de Provas (Word / PDF / Texto)
-  const [isImporterOpen, setIsImporterOpen] = useState(false)
-
-  // Gestão de Provas / Avaliações da Aula (Quiz Nativo e Google Drive / Forms)
+  // Gestão da Avaliação Oficial da Aula (Google Drive ou Google Forms)
   const [examDriveUrl, setExamDriveUrl] = useState<string>('')
-  const [lessonQuestions, setLessonQuestions] = useState<AssessmentQuestion[]>([])
-  const [expandedQuestionIdx, setExpandedQuestionIdx] = useState<number | null>(null)
-
-  const handleAddBlankQuestionToLesson = () => {
-    const newQ: AssessmentQuestion = {
-      id: `lq-${Date.now()}-${lessonQuestions.length + 1}`,
-      sequence_order: lessonQuestions.length + 1,
-      statement: '',
-      points: 5,
-      feedback: '',
-      options: [
-        { id: `lopt-${Date.now()}-0`, option_letter: 'A', text: '', is_correct: true },
-        { id: `lopt-${Date.now()}-1`, option_letter: 'B', text: '', is_correct: false },
-        { id: `lopt-${Date.now()}-2`, option_letter: 'C', text: '', is_correct: false },
-        { id: `lopt-${Date.now()}-3`, option_letter: 'D', text: '', is_correct: false },
-        { id: `lopt-${Date.now()}-4`, option_letter: 'E', text: '', is_correct: false },
-      ],
-    }
-    setLessonQuestions((prev) => [...prev, newQ])
-    setExpandedQuestionIdx(lessonQuestions.length)
-  }
-
-  const handleUpdateLessonQuestion = (qIdx: number, patch: Partial<AssessmentQuestion>) => {
-    setLessonQuestions((prev) => {
-      const next = [...prev]
-      next[qIdx] = { ...next[qIdx], ...patch }
-      return next
-    })
-  }
-
-  const handleUpdateLessonOption = (qIdx: number, optIdx: number, text: string) => {
-    setLessonQuestions((prev) => {
-      const next = [...prev]
-      const opts = [...(next[qIdx].options || [])]
-      opts[optIdx] = { ...opts[optIdx], text }
-      next[qIdx] = { ...next[qIdx], options: opts }
-      return next
-    })
-  }
-
-  const handleSetCorrectLessonOption = (qIdx: number, optIdx: number) => {
-    setLessonQuestions((prev) => {
-      const next = [...prev]
-      const opts = (next[qIdx].options || []).map((o, i) => ({
-        ...o,
-        is_correct: i === optIdx,
-      }))
-      next[qIdx] = { ...next[qIdx], options: opts }
-      return next
-    })
-  }
-
-  const handleRemoveLessonQuestion = (qIdx: number) => {
-    setLessonQuestions((prev) => prev.filter((_, i) => i !== qIdx))
-    if (expandedQuestionIdx === qIdx) setExpandedQuestionIdx(null)
-  }
-
-  const handleLoadPresetLesson1_1 = () => {
-    const cloned: AssessmentQuestion[] = JSON.parse(JSON.stringify(LESSON_1_1_QUESTIONS))
-    setLessonQuestions(cloned)
-    setExpandedQuestionIdx(0)
-    const currentLessonId = editingLesson?.id || lessonId
-    if (currentLessonId) {
-      assessmentService
-        .saveLessonQuizQuestions({
-          lesson_id: currentLessonId,
-          course_id: selectedCourseId,
-          discipline_id: selectedDisciplineId,
-          lesson_title: title || editingLesson?.title || 'Aula 1.1: FOH vs. BOH',
-          questions: cloned,
-        })
-        .catch(() => {})
-    }
-    showToast('15 Questões Oficiais (Aula 1.1: FOH vs. BOH) carregadas e vinculadas a esta aula!')
-  }
 
   // Dados de contexto
   const [courses, setCourses] = useState<SupabaseCourse[]>([])
@@ -387,22 +301,6 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     )
     if (lessonItem.course_id) setSelectedCourseId(lessonItem.course_id)
     if (lessonItem.discipline_id) setSelectedDisciplineId(lessonItem.discipline_id)
-    // Zera imediatamente as questões antes de carregar as questões do lesson_id atual
-    setLessonQuestions([])
-    setExpandedQuestionIdx(null)
-    if (lessonItem.id) {
-      const targetId = String(lessonItem.id)
-      assessmentService
-        .getAssessmentByLessonId(targetId)
-        .then((asm) => {
-          if (asm && String(asm.lesson_id) === targetId) {
-            setLessonQuestions(asm.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
-          } else {
-            setLessonQuestions([])
-          }
-        })
-        .catch(() => setLessonQuestions([]))
-    }
     setViewMode('editor')
   }
 
@@ -420,8 +318,6 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     setSlidesUrlEn('')
     setSlidesUrlEs('')
     setExamDriveUrl('')
-    setLessonQuestions([])
-    setExpandedQuestionIdx(null)
     setUsefulLinks([])
     setViewMode('editor')
   }
@@ -499,21 +395,6 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
           if (data.exam_drive_url) setExamDriveUrl(data.exam_drive_url)
           if (data.course_id) setSelectedCourseId(data.course_id)
           if (data.discipline_id) setSelectedDisciplineId(data.discipline_id)
-          setLessonQuestions([])
-          setExpandedQuestionIdx(null)
-          if (data.id) {
-            const targetId = String(data.id)
-            assessmentService
-              .getAssessmentByLessonId(targetId)
-              .then((asm) => {
-                if (asm && String(asm.lesson_id) === targetId) {
-                  setLessonQuestions(asm.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
-                } else {
-                  setLessonQuestions([])
-                }
-              })
-              .catch(() => setLessonQuestions([]))
-          }
         }
       } catch (err) {
         console.error('Erro ao carregar lição para edição:', err)
@@ -745,15 +626,6 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         saved = await lessonService.createLesson(payload)
         setLessonsList((prev) => [saved, ...prev.filter((l) => l.id !== saved.id)])
       }
-
-      // Vincula e salva automaticamente as questões do Quiz desta aula no Supabase
-      await assessmentService.saveLessonQuizQuestions({
-        lesson_id: saved.id,
-        course_id: saved.course_id,
-        discipline_id: saved.discipline_id,
-        lesson_title: saved.title,
-        questions: lessonQuestions,
-      })
 
       // Mantém o formulário aberto e atualiza editingLesson com o ID retornado pelo Supabase
       setEditingLesson(saved)
@@ -1932,220 +1804,34 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
             </div>
           </div>
 
-          {/* 4. Avaliação Oficial da Aula (Quiz Interativo Clicável com Cálculo de Nota e Gabarito Comentado) */}
-          <div className="bg-white p-5 rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-[#0F1B2F] text-[#C59E5D] border border-[#C59E5D]/40">
-                  <Award className="w-5 h-5 text-[#C59E5D]" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <span>4. Avaliação Oficial da Aula (Quiz Interativo Clicável)</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#0F1B2F] text-[#C59E5D]">
-                      Etapa 4 do AVA
-                    </span>
-                  </h3>
-                  <span className="text-[11px] text-slate-400">
-                    Converta provas (.docx, .pdf ou texto) em questões interativas clicáveis (A a E) com cálculo automático de nota e gabarito comentado
+          {/* 4. Avaliação Oficial da Aula (Etapa 4 do AVA) */}
+          <div className="bg-white p-5 rounded-3xl border-2 border-[#C59E5D]/40 shadow-xs space-y-3">
+            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+              <div className="p-2 rounded-xl bg-[#0F1B2F] text-[#C59E5D] border border-[#C59E5D]/40">
+                <Award className="w-5 h-5 text-[#C59E5D]" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <span>4. Avaliação Oficial da Aula</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#0F1B2F] text-[#C59E5D]">
+                    Etapa 4 do AVA
                   </span>
-                </div>
-              </div>
-
-              <span
-                className={`px-2.5 py-1 rounded-full text-xs font-extrabold self-start sm:self-auto ${
-                  lessonQuestions.length > 0
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : 'bg-amber-100 text-amber-800 border border-amber-300'
-                }`}
-              >
-                {lessonQuestions.length > 0
-                  ? `${lessonQuestions.length} ${lessonQuestions.length === 1 ? 'questão interativa' : 'questões interativas'}`
-                  : '0 questões'}
-              </span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[#FAF8F2] border border-[#C59E5D]/30 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-[#0F1B2F] flex items-center gap-1.5">
-                  <HelpCircle className="w-4 h-4 text-[#C59E5D]" />
-                  <span>Importador e Construtor de Questões Interativas (A a E)</span>
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Importe um arquivo Word (.docx), PDF ou cole o texto da avaliação para converter automaticamente em questões clicáveis com nota de 0 a 10 e gabarito comentado.
-              </p>
-
-              <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsImporterOpen(true)}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/40 transition shadow-xs cursor-pointer"
-                >
-                  <UploadCloud className="w-4 h-4 text-[#C59E5D]" />
-                  <span>Importar Questões (Word / PDF / Texto)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLoadPresetLesson1_1}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] transition shadow-xs cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4 text-[#0F1B2F]" />
-                  <span>Carregar Banco Padrão — Aula 1.1 (15 Questões FOH vs. BOH)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleAddBlankQuestionToLesson}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 transition cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Adicionar Questão</span>
-                </button>
+                </h3>
               </div>
             </div>
 
-            {/* Lista de Questões Vinculadas à Aula (Visíveis e Editáveis dentro da Aula) */}
-            {lessonQuestions.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
-                    Questões Vinculadas a Esta Aula ({lessonQuestions.length})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('Deseja limpar todas as questões desta aula?')) {
-                        setLessonQuestions([])
-                      }
-                    }}
-                    className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer"
-                  >
-                    Limpar Todas
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {lessonQuestions.map((q, qIdx) => {
-                    const isExp = expandedQuestionIdx === qIdx
-                    const correctLetter =
-                      (q.options || []).find((o) => o.is_correct)?.option_letter || 'A'
-
-                    return (
-                      <div
-                        key={q.id || qIdx}
-                        className="bg-[#FAF8F2] rounded-xl border border-[#C59E5D]/40 shadow-2xs overflow-hidden"
-                      >
-                        <div
-                          onClick={() => setExpandedQuestionIdx(isExp ? null : qIdx)}
-                          className="px-3.5 py-2.5 bg-white hover:bg-slate-50 flex items-center justify-between gap-2 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="w-6 h-6 rounded-lg bg-[#0F1B2F] text-[#C59E5D] text-[11px] font-bold flex items-center justify-center shrink-0">
-                              {qIdx + 1}
-                            </span>
-                            <span className="text-xs font-bold text-slate-800 truncate">
-                              {q.statement || 'Clique para digitar o enunciado da questão...'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-extrabold">
-                              Gabarito: {correctLetter}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRemoveLessonQuestion(qIdx)
-                              }}
-                              className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
-                              title="Remover questão"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            {isExp ? (
-                              <ChevronUp className="w-4 h-4 text-slate-500" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 text-slate-500" />
-                            )}
-                          </div>
-                        </div>
-
-                        {isExp && (
-                          <div className="p-3.5 space-y-3 border-t border-[#C59E5D]/20 bg-white">
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                                Enunciado da Questão #{qIdx + 1}
-                              </label>
-                              <textarea
-                                rows={3}
-                                value={q.statement}
-                                onChange={(e) =>
-                                  handleUpdateLessonQuestion(qIdx, { statement: e.target.value })
-                                }
-                                placeholder="Digite o texto-base e o enunciado da questão..."
-                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C59E5D]"
-                              />
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <label className="block text-[11px] font-bold text-slate-700">
-                                Alternativas (Clique na letra para definir o Gabarito Correto)
-                              </label>
-                              {(q.options || []).map((opt, optIdx) => (
-                                <div key={opt.id || optIdx} className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetCorrectLessonOption(qIdx, optIdx)}
-                                    className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center shrink-0 transition cursor-pointer ${
-                                      opt.is_correct
-                                        ? 'bg-emerald-600 text-white shadow-2xs'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
-                                    title="Marcar como correta"
-                                  >
-                                    {opt.option_letter || String.fromCharCode(65 + optIdx)}
-                                  </button>
-                                  <input
-                                    type="text"
-                                    value={opt.text}
-                                    onChange={(e) =>
-                                      handleUpdateLessonOption(qIdx, optIdx, e.target.value)
-                                    }
-                                    placeholder={`Texto da alternativa ${opt.option_letter || String.fromCharCode(65 + optIdx)}...`}
-                                    className={`flex-1 px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none ${
-                                      opt.is_correct
-                                        ? 'bg-emerald-50/60 border-emerald-400 font-semibold text-emerald-950'
-                                        : 'bg-slate-50 border-slate-200 text-slate-800'
-                                    }`}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                                Gabarito Comentado / Feedback Pedagógico
-                              </label>
-                              <textarea
-                                rows={2}
-                                value={q.feedback || ''}
-                                onChange={(e) =>
-                                  handleUpdateLessonQuestion(qIdx, { feedback: e.target.value })
-                                }
-                                placeholder="Justificativa do gabarito exibida ao aluno após responder..."
-                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C59E5D]"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#0F1B2F]">
+                Link da Avaliação da Aula (Google Drive ou Google Forms)
+              </label>
+              <input
+                type="url"
+                value={examDriveUrl}
+                onChange={(e) => setExamDriveUrl(e.target.value)}
+                placeholder="Cole aqui o link de compartilhamento da prova no Google Drive ou Google Forms..."
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59E5D]/30 focus:border-[#C59E5D]"
+              />
+            </div>
           </div>
 
           {/* Card de Links Úteis da Aula (Secção Dinâmica) */}
@@ -2329,95 +2015,6 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         onDelete={(id) => {
           const item = lessonsList.find((l) => l.id === id) || selectedLessonForModal
           if (item) handleDeleteLesson(item)
-        }}
-      />
-
-      {/* Modal Importador Inteligente de Provas Vinculado Automaticamente à Aula */}
-      <SmartExamImporterModal
-        isOpen={isImporterOpen}
-        onClose={() => setIsImporterOpen(false)}
-        courses={courses}
-        disciplines={disciplines}
-        defaultCourseId={selectedCourseId}
-        defaultDisciplineId={selectedDisciplineId}
-        defaultLessonId={editingLesson?.id || lessonId || undefined}
-        onEnsureLessonId={async () => {
-          const existingId = editingLesson?.id || lessonId
-          if (existingId) return existingId
-          const created = await lessonService.createLesson({
-            course_id: selectedCourseId,
-            discipline_id: selectedDisciplineId,
-            title: title.trim() || 'Nova Aula',
-            sequence_order: Number(sequenceOrder) || 1,
-            duration_minutes: Number(durationMinutes) || 20,
-            content_text: contentText,
-            video_url: videoUrl.trim(),
-            materials,
-            pdf_url: pdfUrl || undefined,
-            pdf_name: pdfName || undefined,
-            useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
-            slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
-            slides_url_pt: slidesUrlPt || undefined,
-            slides_url_en: slidesUrlEn || undefined,
-            slides_url_es: slidesUrlEs || undefined,
-          })
-          setEditingLesson(created)
-          setLessonsList((prev) => [created, ...prev.filter((l) => l.id !== created.id)])
-          return created.id
-        }}
-        onQuestionsImported={async (importedQuestions) => {
-          setLessonQuestions(importedQuestions)
-          setExpandedQuestionIdx(0)
-          let currentLessonId = editingLesson?.id || lessonId
-          if (!currentLessonId) {
-            try {
-              const created = await lessonService.createLesson({
-                course_id: selectedCourseId,
-                discipline_id: selectedDisciplineId,
-                title: title.trim() || 'Nova Aula',
-                sequence_order: Number(sequenceOrder) || 1,
-                duration_minutes: Number(durationMinutes) || 20,
-                content_text: contentText,
-                video_url: videoUrl.trim(),
-                materials,
-                pdf_url: pdfUrl || undefined,
-                pdf_name: pdfName || undefined,
-                useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
-                slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
-                slides_url_pt: slidesUrlPt || undefined,
-                slides_url_en: slidesUrlEn || undefined,
-                slides_url_es: slidesUrlEs || undefined,
-              })
-              setEditingLesson(created)
-              setLessonsList((prev) => [created, ...prev.filter((l) => l.id !== created.id)])
-              currentLessonId = created.id
-            } catch {
-              // prossegue
-            }
-          }
-          if (currentLessonId) {
-            await assessmentService
-              .saveLessonQuizQuestions({
-                lesson_id: currentLessonId,
-                course_id: selectedCourseId,
-                discipline_id: selectedDisciplineId,
-                lesson_title: title || editingLesson?.title || 'Aula',
-                questions: importedQuestions,
-              })
-              .catch(() => {})
-          }
-          showToast(
-            `${importedQuestions.length} questões importadas e vinculadas ao lesson_id desta aula!`,
-          )
-        }}
-        onSaveToDatabaseSuccess={(saved) => {
-          if (saved?.questions?.length) {
-            setLessonQuestions(saved.questions)
-            setExpandedQuestionIdx(0)
-            showToast(
-              `${saved.questions.length} questões salvas e vinculadas ao lesson_id desta aula!`,
-            )
-          }
         }}
       />
 

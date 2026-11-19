@@ -6,21 +6,17 @@ import {
   Presentation,
   FileText,
   CheckCircle2,
-  XCircle,
   ExternalLink,
   Download,
   Languages,
   Clock,
   Sparkles,
   Link2,
-  RotateCcw,
   Award,
-  BookOpen,
   Eye,
 } from 'lucide-react'
-import type { SupabaseLesson, UsefulLink, AssessmentQuestion } from '../../../types'
-import { extractYouTubeId } from '../../../services/lessonService'
-import { assessmentService } from '../../../services/assessmentService'
+import type { SupabaseLesson, UsefulLink } from '../../../types'
+import { extractYouTubeId, formatGoogleDriveEmbedUrl } from '../../../services/lessonService'
 import { SlideViewer } from '../../classroom/components/SlideViewer'
 
 export interface StudentLessonPreviewModalProps {
@@ -63,7 +59,6 @@ export interface StudentLessonPreviewModalProps {
         useful_links?: UsefulLink[]
         usefulLinks?: UsefulLink[]
         materials?: any[]
-        questions?: AssessmentQuestion[]
       }
     | null
   courseTitle?: string
@@ -79,10 +74,7 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
 }) => {
   // Normalização segura de campos (suporta snake_case e camelCase sem quebrar com undefined)
   const raw = (lesson || {}) as Record<string, any>
-  const lessonId = raw.id ? String(raw.id) : undefined
   const lessonTitle = String(raw.title || 'Aula sem Título').trim() || 'Aula sem Título'
-  const courseId = String(raw.course_id ?? raw.courseId ?? '')
-  const disciplineId = String(raw.discipline_id ?? raw.disciplineId ?? '')
   const sequenceOrder = Number(raw.sequence_order ?? raw.sequenceOrder ?? 1) || 1
   const durationMinutes = Number(raw.duration_minutes ?? raw.durationMinutes ?? 20) || 20
   const contentText = String(raw.content_text ?? raw.contentText ?? raw.content ?? '')
@@ -96,6 +88,8 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
   const slidesUrlEn = String(raw.slides_url_en ?? raw.slidesUrlEn ?? '').trim()
   const slidesUrlEs = String(raw.slides_url_es ?? raw.slidesUrlEs ?? '').trim()
   const slidesUrl = slidesUrlBase || slidesUrlPt || slidesUrlEn || slidesUrlEs
+  const examDriveUrl = String(raw.exam_drive_url ?? raw.examDriveUrl ?? '').trim()
+  const { embedUrl: examEmbedUrl } = formatGoogleDriveEmbedUrl(examDriveUrl)
 
   const rawUsefulLinks = raw.useful_links ?? raw.usefulLinks
   const usefulLinks: UsefulLink[] = Array.isArray(rawUsefulLinks)
@@ -111,20 +105,9 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
 
   const rawMaterials = raw.materials
   const materials: any[] = Array.isArray(rawMaterials) ? rawMaterials.filter(Boolean) : []
-  const inlineQuestions: AssessmentQuestion[] | null = Array.isArray(raw.questions)
-    ? raw.questions
-    : null
 
   // Todos os Hooks no topo (NUNCA após um return condicional)
   const [previewLang, setPreviewLang] = useState<'pt' | 'en' | 'es'>('pt')
-  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>([])
-  const [maxAttempts, setMaxAttempts] = useState<number>(3)
-  const [attemptsUsed, setAttemptsUsed] = useState<number>(0)
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
-  const [isQuizSubmitted, setIsQuizSubmitted] = useState<boolean>(false)
-  const [isSavingResult, setIsSavingResult] = useState<boolean>(false)
-  const [resultSavedInDb, setResultSavedInDb] = useState<boolean>(false)
-  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false)
   const [currentStageIndex, setCurrentStageIndex] = useState<number>(0)
 
   // Dados resolvidos por idioma
@@ -158,59 +141,6 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
       setCurrentStageIndex(0)
     }
   }, [isOpen])
-
-  // Carrega exclusivamente as questões vinculadas ao lesson_id da aula atual (zera o estado antes de carregar)
-  useEffect(() => {
-    setQuizQuestions([])
-    setSelectedAnswers({})
-    setIsQuizSubmitted(false)
-    setResultSavedInDb(false)
-    setAttemptsUsed(0)
-
-    if (!isOpen || !lesson) return
-
-    if (inlineQuestions && inlineQuestions.length > 0) {
-      setQuizQuestions(inlineQuestions)
-      setIsLoadingQuiz(false)
-      return
-    }
-
-    if (!lessonId) {
-      setQuizQuestions([])
-      setIsLoadingQuiz(false)
-      return
-    }
-
-    let isActive = true
-    setIsLoadingQuiz(true)
-    assessmentService
-      .getAssessmentByLessonId(lessonId)
-      .then((found) => {
-        if (!isActive) return
-        if (
-          found &&
-          String(found.lesson_id) === String(lessonId) &&
-          Array.isArray(found.questions) &&
-          found.questions.length > 0
-        ) {
-          setQuizQuestions(found.questions)
-          setMaxAttempts(found.max_attempts || 3)
-        } else {
-          setQuizQuestions([])
-          setMaxAttempts(3)
-        }
-      })
-      .catch(() => {
-        if (isActive) setQuizQuestions([])
-      })
-      .finally(() => {
-        if (isActive) setIsLoadingQuiz(false)
-      })
-
-    return () => {
-      isActive = false
-    }
-  }, [isOpen, lessonId, inlineQuestions, lesson])
 
   // Trilha paginada passo a passo (Vídeo -> Slides / Apostila -> Links Úteis -> Prova/Quiz)
   const activeStages = useMemo(() => {
@@ -285,66 +215,6 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
 
   const progressPercent =
     activeStages.length > 0 ? Math.round(((safeStageIndex + 1) / activeStages.length) * 100) : 100
-
-  const handleSelectOption = (questionId: string, optionId: string) => {
-    if (isQuizSubmitted) return
-    setSelectedAnswers((prev) => ({ ...prev, [questionId]: optionId }))
-  }
-
-  // Cálculo da nota da prova
-  const totalQuestionsCount = quizQuestions.length
-  const answeredQuestionsCount = quizQuestions.filter((q, idx) => {
-    const qId = String(q?.id || `q-${idx}`)
-    return Boolean(selectedAnswers[qId])
-  }).length
-
-  const correctAnswersCount = quizQuestions.reduce((acc, q, idx) => {
-    const qId = String(q?.id || `q-${idx}`)
-    const selId = selectedAnswers[qId]
-    const qOptions = Array.isArray(q?.options) ? q.options : []
-    const isRight = qOptions.some(
-      (opt, oIdx) => String(opt?.id || `opt-${idx}-${oIdx}`) === selId && opt?.is_correct,
-    )
-    return acc + (isRight ? 1 : 0)
-  }, 0)
-
-  const calculatedScoreNumber =
-    totalQuestionsCount > 0
-      ? Number(((correctAnswersCount / totalQuestionsCount) * 10).toFixed(1))
-      : 0
-  const formattedScoreText = calculatedScoreNumber.toFixed(1).replace('.', ',')
-
-  const handleFinalizeQuiz = async () => {
-    const nextAttempt = attemptsUsed + 1
-    setAttemptsUsed(nextAttempt)
-    setIsQuizSubmitted(true)
-    setIsSavingResult(true)
-    try {
-      await assessmentService.saveQuizAttemptResult({
-        lesson_id: lessonId,
-        discipline_id: disciplineId || undefined,
-        course_id: courseId || undefined,
-        score: calculatedScoreNumber,
-        max_score: 10,
-        correct_count: correctAnswersCount,
-        total_questions: totalQuestionsCount,
-        attempt_number: nextAttempt,
-        answers: selectedAnswers,
-      })
-      setResultSavedInDb(true)
-    } catch {
-      // fallback silencioso
-    } finally {
-      setIsSavingResult(false)
-    }
-  }
-
-  const handleResetQuiz = () => {
-    if (attemptsUsed >= maxAttempts) return
-    setSelectedAnswers({})
-    setIsQuizSubmitted(false)
-    setResultSavedInDb(false)
-  }
 
   return (
     <div className="fixed inset-0 z-[70] bg-[#0F1B2F]/95 backdrop-blur-md flex flex-col overflow-hidden animate-in fade-in duration-200">
@@ -852,310 +722,41 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
             </div>
           )}
 
-          {/* PÁGINA 4 — AVALIAÇÃO OFICIAL DA AULA (QUIZ INTERATIVO CLICÁVEL) */}
+          {/* PÁGINA 4 — AVALIAÇÃO OFICIAL DA AULA */}
           {currentStage.id === 'avaliacao_quiz' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              {isLoadingQuiz ? (
-                <div className="p-8 text-center text-sm font-semibold text-slate-500 bg-white rounded-3xl border border-slate-200">
-                  Carregando Avaliação Oficial da Aula...
-                </div>
-              ) : quizQuestions.length === 0 ? (
+              {!examDriveUrl || !examEmbedUrl ? (
                 <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2">
                   <Award className="w-10 h-10 text-slate-400 mx-auto" />
                   <h3 className="text-sm sm:text-base font-bold text-[#0F1B2F]">
-                    Nenhuma avaliação cadastrada para esta aula ainda
+                    Nenhuma avaliação vinculada a esta aula no momento.
                   </h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Importe as questões desta aula (.docx, .pdf ou texto) dentro do formulário de edição da aula para disponibilizar a Avaliação Oficial aos alunos.
-                  </p>
                 </div>
               ) : (
-                <div className="space-y-5">
-                  {/* Cabeçalho Oficial da Avaliação da Aula (Sem referências ao Google Drive) */}
-                  <div className="p-5 sm:p-6 bg-white rounded-3xl border-2 border-[#C59E5D]/50 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                      <div className="p-3 rounded-2xl bg-[#0F1B2F] text-[#C59E5D] shadow-xs border border-[#C59E5D]/40">
-                        <Award className="w-6 h-6 text-[#C59E5D]" />
+                <div className="rounded-3xl overflow-hidden border-2 border-[#0F1B2F] bg-white shadow-2xl ring-2 ring-[#C59E5D]/40">
+                  <div className="bg-[#0F1B2F] text-white px-5 py-4 flex items-center justify-between gap-3 border-b border-[#C59E5D]/50">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-[#C59E5D]/20 border border-[#C59E5D]/50 text-[#C59E5D] shrink-0">
+                        <Award className="w-5 h-5 text-[#C59E5D]" />
                       </div>
                       <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base sm:text-lg font-extrabold text-[#0F1B2F]">
-                            Avaliação Oficial da Aula
-                          </h3>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-[#C59E5D] text-[#0F1B2F]">
-                            {totalQuestionsCount} Questões Interativas
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Selecione uma alternativa (A a E) para cada questão e clique em &quot;Finalizar Prova e Calcular Nota&quot; ao final.
-                        </p>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-[#C59E5D] text-[#0F1B2F] shadow-xs">
+                          Etapa 4 do AVA
+                        </span>
+                        <h3 className="text-sm sm:text-base font-extrabold text-[#FAF8F2] mt-0.5">
+                          Avaliação Oficial da Aula
+                        </h3>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FAF8F2] text-[#0F1B2F] border border-[#C59E5D]/40">
-                        Respondidas: {answeredQuestionsCount} / {totalQuestionsCount}
-                      </span>
-                      {isQuizSubmitted && attemptsUsed < maxAttempts && (
-                        <button
-                          type="button"
-                          onClick={handleResetQuiz}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0F1B2F] bg-[#C59E5D] hover:bg-[#B38C4B] transition cursor-pointer shadow-xs"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Refazer Avaliação</span>
-                        </button>
-                      )}
                     </div>
                   </div>
 
-                  {/* Card de Resultado e Nota Final (Exibido após clicar em "Finalizar Prova e Calcular Nota") */}
-                  {isQuizSubmitted && (
-                    <div
-                      className={`p-5 sm:p-6 rounded-3xl border-2 shadow-md animate-in fade-in duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                        calculatedScoreNumber >= 7
-                          ? 'bg-emerald-50/90 border-emerald-400 text-emerald-950'
-                          : 'bg-amber-50/90 border-amber-400 text-amber-950'
-                      }`}
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase ${
-                              calculatedScoreNumber >= 7
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-amber-600 text-white'
-                            }`}
-                          >
-                            {calculatedScoreNumber >= 7
-                              ? '✓ Aprovado na Avaliação'
-                              : 'Atenção • Revisão Recomendada'}
-                          </span>
-                          <span className="text-xs font-bold opacity-80">
-                            Tentativa {attemptsUsed} de {maxAttempts}
-                          </span>
-                          {resultSavedInDb && (
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/80 text-slate-700 border border-slate-200">
-                              ✓ Resultado salvo no Supabase
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="text-lg sm:text-xl font-extrabold text-[#0F1B2F]">
-                          Nota: {formattedScoreText} / 10 — {correctAnswersCount} de{' '}
-                          {totalQuestionsCount} acertos
-                        </h4>
-                        <p className="text-xs text-slate-700">
-                          Confira abaixo a correção detalhada questão por questão e o{' '}
-                          <strong>Gabarito Comentado</strong> oficial da Hemingway School.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        {attemptsUsed < maxAttempts ? (
-                          <button
-                            type="button"
-                            onClick={handleResetQuiz}
-                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/50 shadow-sm transition cursor-pointer"
-                          >
-                            <RotateCcw className="w-4 h-4 text-[#C59E5D]" />
-                            <span>
-                              Refazer Avaliação ({maxAttempts - attemptsUsed}{' '}
-                              {maxAttempts - attemptsUsed === 1
-                                ? 'tentativa restante'
-                                : 'tentativas restantes'}
-                              )
-                            </span>
-                          </button>
-                        ) : (
-                          <span className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/80 text-slate-700 border border-slate-300">
-                            Limite de {maxAttempts} tentativas atingido
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Lista de Questões Interativas Clicáveis */}
-                  <div className="space-y-5">
-                    {quizQuestions.map((q, qIndex) => {
-                      const qId = String(q?.id || `q-${qIndex}`)
-                      const qOptions = Array.isArray(q?.options) ? q.options : []
-                      const selectedOptId = selectedAnswers[qId]
-                      const selectedOption = qOptions.find(
-                        (opt, oIdx) => String(opt?.id || `opt-${qIndex}-${oIdx}`) === selectedOptId,
-                      )
-                      const isCorrect = selectedOption?.is_correct ?? false
-
-                      return (
-                        <div
-                          key={qId}
-                          className="p-5 sm:p-6 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-4"
-                        >
-                          {/* Enunciado da Questão */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                              <span className="w-7 h-7 rounded-xl bg-[#0F1B2F] text-[#C59E5D] text-xs font-extrabold flex items-center justify-center shrink-0">
-                                {qIndex + 1}
-                              </span>
-                              <div>
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                                  Questão {qIndex + 1} de {totalQuestionsCount}
-                                </span>
-                                <p className="text-sm sm:text-base font-bold text-[#0F1B2F] mt-1 leading-snug whitespace-pre-line">
-                                  {q?.statement || ''}
-                                </p>
-                              </div>
-                            </div>
-
-                            {isQuizSubmitted && (
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
-                                  isCorrect
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                    : 'bg-red-100 text-red-800 border border-red-300'
-                                }`}
-                              >
-                                {isCorrect ? (
-                                  <>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span>Correta</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle className="w-3.5 h-3.5 text-red-600" />
-                                    <span>Incorreta</span>
-                                  </>
-                                )}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Alternativas Clicáveis (A a E) */}
-                          <div className="space-y-2.5 pt-1">
-                            {qOptions.map((opt, optIdx) => {
-                              const optId = String(opt?.id || `opt-${qIndex}-${optIdx}`)
-                              const isSelected = selectedOptId === optId
-                              let buttonStyle =
-                                'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
-
-                              if (isQuizSubmitted) {
-                                if (opt?.is_correct) {
-                                  buttonStyle =
-                                    'bg-emerald-50 border-2 border-emerald-500 text-emerald-950 font-bold ring-1 ring-emerald-300'
-                                } else if (isSelected && !opt?.is_correct) {
-                                  buttonStyle =
-                                    'bg-red-50 border-2 border-red-400 text-red-900 line-through'
-                                }
-                              } else if (isSelected) {
-                                buttonStyle =
-                                  'bg-[#FAF8F2] border-2 border-[#0F1B2F] text-[#0F1B2F] font-semibold ring-2 ring-[#C59E5D]/30'
-                              }
-
-                              return (
-                                <button
-                                  key={optId}
-                                  type="button"
-                                  disabled={isQuizSubmitted}
-                                  onClick={() => handleSelectOption(qId, optId)}
-                                  className={`w-full p-3.5 rounded-2xl border text-left text-xs sm:text-sm flex items-center gap-3 transition-all ${
-                                    isQuizSubmitted ? 'cursor-default' : 'cursor-pointer'
-                                  } ${buttonStyle}`}
-                                >
-                                  <span
-                                    className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center shrink-0 ${
-                                      isQuizSubmitted && opt?.is_correct
-                                        ? 'bg-emerald-600 text-white'
-                                        : isQuizSubmitted && isSelected && !opt?.is_correct
-                                          ? 'bg-red-600 text-white'
-                                          : isSelected
-                                            ? 'bg-[#0F1B2F] text-[#C59E5D]'
-                                            : 'bg-white border border-slate-300 text-slate-700'
-                                    }`}
-                                  >
-                                    {opt?.option_letter || String.fromCharCode(65 + optIdx)}
-                                  </span>
-                                  <span className="flex-1">{opt?.text || ''}</span>
-                                  {isQuizSubmitted && opt?.is_correct && (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  )}
-                                  {isQuizSubmitted && isSelected && !opt?.is_correct && (
-                                    <XCircle className="w-4 h-4 text-red-600 shrink-0" />
-                                  )}
-                                </button>
-                              )
-                            })}
-                          </div>
-
-                          {/* Gabarito Comentado e Justificativa Pedagógica (Exibido após Finalizar Prova) */}
-                          {isQuizSubmitted && (
-                            <div className="p-4 rounded-2xl bg-[#FAF8F2] border-2 border-[#C59E5D]/40 space-y-1.5 animate-in fade-in duration-150">
-                              <div className="flex items-center gap-2 text-xs font-extrabold text-[#0F1B2F] uppercase tracking-wide">
-                                <BookOpen className="w-4 h-4 text-[#C59E5D]" />
-                                <span>Gabarito Comentado &amp; Feedback Pedagógico</span>
-                              </div>
-                              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                                {q?.feedback ||
-                                  'A alternativa correta alinha-se com a diretriz operacional e técnica estabelecida no currículo oficial da Hemingway School.'}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Rodapé da Prova: Botão "Finalizar Prova e Calcular Nota" ou "Refazer Avaliação" */}
-                  <div className="p-5 sm:p-6 bg-white rounded-3xl border-2 border-[#0F1B2F] shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
-                    {!isQuizSubmitted ? (
-                      <>
-                        <div className="text-center sm:text-left">
-                          <h4 className="text-sm font-extrabold text-[#0F1B2F]">
-                            Pronto para concluir sua Avaliação Oficial?
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Você respondeu <strong>{answeredQuestionsCount}</strong> de{' '}
-                            <strong>{totalQuestionsCount}</strong> questões. Ao finalizar, sua nota e o gabarito comentado serão exibidos imediatamente.
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleFinalizeQuiz}
-                          disabled={isSavingResult || totalQuestionsCount === 0}
-                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs sm:text-sm font-extrabold bg-[#C59E5D] hover:bg-[#B38C4B] text-[#0F1B2F] shadow-lg shadow-[#C59E5D]/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-[#0F1B2F]" />
-                          <span>
-                            {isSavingResult
-                              ? 'Calculando e Salvando Nota...'
-                              : 'Finalizar Prova e Calcular Nota'}
-                          </span>
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-center sm:text-left">
-                          <h4 className="text-sm sm:text-base font-extrabold text-[#0F1B2F]">
-                            Nota Final: {formattedScoreText} / 10 — {correctAnswersCount} de{' '}
-                            {totalQuestionsCount} acertos
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Avaliação corrigida com Gabarito Comentado exibido em todas as questões acima.
-                          </p>
-                        </div>
-
-                        {attemptsUsed < maxAttempts && (
-                          <button
-                            type="button"
-                            onClick={handleResetQuiz}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs sm:text-sm font-extrabold bg-[#0F1B2F] hover:bg-[#1C2E4A] text-[#FAF8F2] border border-[#C59E5D]/60 shadow-md transition-all cursor-pointer shrink-0"
-                          >
-                            <RotateCcw className="w-4 h-4 text-[#C59E5D]" />
-                            <span>Refazer Avaliação</span>
-                          </button>
-                        )}
-                      </>
-                    )}
+                  <div className="w-full bg-white min-h-[650px]">
+                    <iframe
+                      src={examEmbedUrl}
+                      title="Avaliação Oficial da Aula"
+                      className="w-full min-h-[650px] h-[720px] border-0"
+                      allowFullScreen
+                    />
                   </div>
                 </div>
               )}
