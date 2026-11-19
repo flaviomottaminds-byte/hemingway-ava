@@ -24,7 +24,6 @@ import type { Lesson, SupabaseLesson, UserProfile, UsefulLink, AssessmentQuestio
 import type { SupportedLanguageCode } from '../../locales/i18n'
 import { lessonService, extractYouTubeId } from '../../services/lessonService'
 import { assessmentService } from '../../services/assessmentService'
-import { LESSON_1_1_QUESTIONS } from '../../data/lesson1_1_questions'
 import { CompletionStatementModal } from '../../components/certificate/CompletionStatementModal'
 import { LessonEditModal } from '../teacher/components/LessonEditModal'
 import { SlideViewer } from './components/SlideViewer'
@@ -106,7 +105,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
   const hasSlides = Boolean(slidesUrl || slidesUrlPt || slidesUrlEn || slidesUrlEs)
 
   // Avaliação Oficial da Aula (Quiz Interativo Nativo com Cálculo de Nota e Gabarito Comentado)
-  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>(LESSON_1_1_QUESTIONS)
+  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>([])
   const [maxAttempts, setMaxAttempts] = useState<number>(3)
   const [attemptsUsed, setAttemptsUsed] = useState<number>(0)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
@@ -115,39 +114,50 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
   const [resultSavedInDb, setResultSavedInDb] = useState<boolean>(false)
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false)
 
-  // Carrega questões avaliativas reais salvas no Supabase para a aula ou disciplina
+  // Carrega exclusivamente as questões vinculadas ao lesson_id da aula atual (zera o estado antes de carregar)
   useEffect(() => {
-    const targetLessonId = supabaseLesson?.id || lesson.id
-    const targetCourseId = supabaseLesson?.course_id || (lesson as any).course_id
-    const targetDisciplineId = supabaseLesson?.discipline_id || (lesson as any).discipline_id
-
+    setQuizQuestions([])
     setSelectedAnswers({})
     setIsQuizSubmitted(false)
     setResultSavedInDb(false)
     setAttemptsUsed(0)
+
+    const targetLessonId = supabaseLesson?.id || lesson.id
+    if (!targetLessonId) {
+      setIsLoadingQuiz(false)
+      return
+    }
+
+    let isActive = true
     setIsLoadingQuiz(true)
     assessmentService
-      .getAssessmentForLesson({
-        lesson_id: targetLessonId,
-        discipline_id: targetDisciplineId,
-        course_id: targetCourseId,
-      })
+      .getAssessmentByLessonId(targetLessonId)
       .then((found) => {
-        if (found && Array.isArray(found.questions) && found.questions.length > 0) {
+        if (!isActive) return
+        if (
+          found &&
+          String(found.lesson_id) === String(targetLessonId) &&
+          Array.isArray(found.questions) &&
+          found.questions.length > 0
+        ) {
           setQuizQuestions(found.questions)
           setMaxAttempts(found.max_attempts || 3)
         } else {
-          setQuizQuestions(LESSON_1_1_QUESTIONS)
+          setQuizQuestions([])
           setMaxAttempts(3)
         }
       })
       .catch((err) => {
         console.warn('Erro ao carregar avaliação da aula:', err)
-        setQuizQuestions(LESSON_1_1_QUESTIONS)
+        if (isActive) setQuizQuestions([])
       })
       .finally(() => {
-        setIsLoadingQuiz(false)
+        if (isActive) setIsLoadingQuiz(false)
       })
+
+    return () => {
+      isActive = false
+    }
   }, [supabaseLesson, lesson])
 
   const handleSelectOption = (questionId: string, optionId: string) => {
@@ -240,13 +250,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
       })
     }
 
-    // Página 2 — Apresentação de Slides & Apostila: Slides interativos do Gamma e visualizador da Apostila
+    // Página 2 — Apresentação de Slides & Apostila
     if (hasSlides || pdfUrl || (transcriptionText && transcriptionText.trim().length > 0) || stages.length === 0) {
       stages.push({
         id: 'slides_apostila',
         title: 'Página 2 — Apresentação de Slides & Apostila',
         shortTitle: 'Slides & Apostila',
-        description: 'Acesse os slides no Gamma.app e leia a apostila oficial do curso.',
+        description: 'Acesse a apresentação de slides da aula e leia a apostila oficial do curso.',
         icon: Presentation,
       })
     }
@@ -561,7 +571,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
                   }`}
                 >
                   <Presentation className="w-3.5 h-3.5 text-[#C59E5D]" />
-                  <span>Apresentação de Slides (Gamma.app)</span>
+                  <span>Apresentação de Slides</span>
                 </button>
                 <button
                   type="button"
@@ -788,6 +798,16 @@ export const LessonView: React.FC<LessonViewProps> = ({ lesson, user, onBackToDa
           {isLoadingQuiz ? (
             <div className="p-8 text-center text-sm font-semibold text-slate-500 bg-white rounded-3xl border border-slate-200">
               Carregando Avaliação Oficial da Aula...
+            </div>
+          ) : quizQuestions.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2">
+              <Award className="w-10 h-10 text-slate-400 mx-auto" />
+              <h3 className="text-sm sm:text-base font-bold text-[#0F1B2F]">
+                Nenhuma avaliação cadastrada para esta aula ainda
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Esta aula ainda não possui questões avaliativas cadastradas.
+              </p>
             </div>
           ) : (
             <div className="space-y-5">

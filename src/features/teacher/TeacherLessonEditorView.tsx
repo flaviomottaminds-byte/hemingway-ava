@@ -387,17 +387,21 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
     )
     if (lessonItem.course_id) setSelectedCourseId(lessonItem.course_id)
     if (lessonItem.discipline_id) setSelectedDisciplineId(lessonItem.discipline_id)
+    // Zera imediatamente as questões antes de carregar as questões do lesson_id atual
+    setLessonQuestions([])
+    setExpandedQuestionIdx(null)
     if (lessonItem.id) {
+      const targetId = String(lessonItem.id)
       assessmentService
-        .getAssessmentByLessonId(lessonItem.id)
+        .getAssessmentByLessonId(targetId)
         .then((asm) => {
-          setLessonQuestions(asm?.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
-          setExpandedQuestionIdx(null)
+          if (asm && String(asm.lesson_id) === targetId) {
+            setLessonQuestions(asm.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
+          } else {
+            setLessonQuestions([])
+          }
         })
         .catch(() => setLessonQuestions([]))
-    } else {
-      setLessonQuestions([])
-      setExpandedQuestionIdx(null)
     }
     setViewMode('editor')
   }
@@ -495,11 +499,18 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
           if (data.exam_drive_url) setExamDriveUrl(data.exam_drive_url)
           if (data.course_id) setSelectedCourseId(data.course_id)
           if (data.discipline_id) setSelectedDisciplineId(data.discipline_id)
+          setLessonQuestions([])
+          setExpandedQuestionIdx(null)
           if (data.id) {
+            const targetId = String(data.id)
             assessmentService
-              .getAssessmentByLessonId(data.id)
+              .getAssessmentByLessonId(targetId)
               .then((asm) => {
-                setLessonQuestions(asm?.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
+                if (asm && String(asm.lesson_id) === targetId) {
+                  setLessonQuestions(asm.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
+                } else {
+                  setLessonQuestions([])
+                }
               })
               .catch(() => setLessonQuestions([]))
           }
@@ -2330,12 +2341,62 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
         defaultCourseId={selectedCourseId}
         defaultDisciplineId={selectedDisciplineId}
         defaultLessonId={editingLesson?.id || lessonId || undefined}
-        onQuestionsImported={(importedQuestions) => {
+        onEnsureLessonId={async () => {
+          const existingId = editingLesson?.id || lessonId
+          if (existingId) return existingId
+          const created = await lessonService.createLesson({
+            course_id: selectedCourseId,
+            discipline_id: selectedDisciplineId,
+            title: title.trim() || 'Nova Aula',
+            sequence_order: Number(sequenceOrder) || 1,
+            duration_minutes: Number(durationMinutes) || 20,
+            content_text: contentText,
+            video_url: videoUrl.trim(),
+            materials,
+            pdf_url: pdfUrl || undefined,
+            pdf_name: pdfName || undefined,
+            useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
+            slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
+            slides_url_pt: slidesUrlPt || undefined,
+            slides_url_en: slidesUrlEn || undefined,
+            slides_url_es: slidesUrlEs || undefined,
+          })
+          setEditingLesson(created)
+          setLessonsList((prev) => [created, ...prev.filter((l) => l.id !== created.id)])
+          return created.id
+        }}
+        onQuestionsImported={async (importedQuestions) => {
           setLessonQuestions(importedQuestions)
           setExpandedQuestionIdx(0)
-          const currentLessonId = editingLesson?.id || lessonId
+          let currentLessonId = editingLesson?.id || lessonId
+          if (!currentLessonId) {
+            try {
+              const created = await lessonService.createLesson({
+                course_id: selectedCourseId,
+                discipline_id: selectedDisciplineId,
+                title: title.trim() || 'Nova Aula',
+                sequence_order: Number(sequenceOrder) || 1,
+                duration_minutes: Number(durationMinutes) || 20,
+                content_text: contentText,
+                video_url: videoUrl.trim(),
+                materials,
+                pdf_url: pdfUrl || undefined,
+                pdf_name: pdfName || undefined,
+                useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
+                slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
+                slides_url_pt: slidesUrlPt || undefined,
+                slides_url_en: slidesUrlEn || undefined,
+                slides_url_es: slidesUrlEs || undefined,
+              })
+              setEditingLesson(created)
+              setLessonsList((prev) => [created, ...prev.filter((l) => l.id !== created.id)])
+              currentLessonId = created.id
+            } catch {
+              // prossegue
+            }
+          }
           if (currentLessonId) {
-            assessmentService
+            await assessmentService
               .saveLessonQuizQuestions({
                 lesson_id: currentLessonId,
                 course_id: selectedCourseId,
@@ -2346,7 +2407,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
               .catch(() => {})
           }
           showToast(
-            `${importedQuestions.length} questões importadas e vinculadas a esta aula!`,
+            `${importedQuestions.length} questões importadas e vinculadas ao lesson_id desta aula!`,
           )
         }}
         onSaveToDatabaseSuccess={(saved) => {
@@ -2354,7 +2415,7 @@ export const TeacherLessonEditorView: React.FC<TeacherLessonEditorViewProps> = (
             setLessonQuestions(saved.questions)
             setExpandedQuestionIdx(0)
             showToast(
-              `${saved.questions.length} questões salvas e vinculadas a esta aula!`,
+              `${saved.questions.length} questões salvas e vinculadas ao lesson_id desta aula!`,
             )
           }
         }}

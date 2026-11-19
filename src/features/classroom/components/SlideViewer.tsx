@@ -175,12 +175,12 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
   ].filter((item) => Boolean(item.url))
 
   const providerNames: Record<SlideProviderType, { name: string; color: string }> = {
-    google_slides: { name: 'Google Slides', color: 'bg-amber-500' },
-    canva: { name: 'Canva Presentation', color: 'bg-cyan-600' },
-    gamma: { name: 'Gamma.app', color: 'bg-indigo-600' },
-    powerpoint: { name: 'Microsoft PowerPoint', color: 'bg-orange-600' },
-    pdf: { name: 'Apresentação em PDF', color: 'bg-red-600' },
-    generic: { name: 'Apresentação Interativa', color: 'bg-blue-600' },
+    google_slides: { name: 'Slides da Aula', color: 'bg-[#C59E5D] text-[#0F1B2F]' },
+    canva: { name: 'Slides da Aula', color: 'bg-[#C59E5D] text-[#0F1B2F]' },
+    gamma: { name: 'Slides da Aula', color: 'bg-[#C59E5D] text-[#0F1B2F]' },
+    powerpoint: { name: 'Slides da Aula', color: 'bg-[#C59E5D] text-[#0F1B2F]' },
+    pdf: { name: 'Apresentação Oficial', color: 'bg-[#C59E5D] text-[#0F1B2F]' },
+    generic: { name: 'Slides da Aula', color: 'bg-[#C59E5D] text-[#0F1B2F]' },
   }
 
   if (!currentUrl) {
@@ -204,11 +204,11 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span
-                className={`px-2 py-0.5 rounded text-[10px] font-extrabold text-white uppercase tracking-wider ${
-                  providerNames[provider]?.color || 'bg-[#C59E5D]'
+                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+                  providerNames[provider]?.color || 'bg-[#C59E5D] text-[#0F1B2F]'
                 }`}
               >
-                {providerNames[provider]?.name || 'Slides'}
+                {providerNames[provider]?.name || 'Slides da Aula'}
               </span>
               <span className="text-[11px] font-bold text-[#EADBBE]/90 uppercase tracking-wider">
                 16:9 HD

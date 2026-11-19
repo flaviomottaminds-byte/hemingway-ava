@@ -4,14 +4,13 @@ import type {
   AssessmentScopeType,
 } from '../types'
 import { supabase } from '../lib/supabase'
-import { LESSON_1_1_QUESTIONS } from '../data/lesson1_1_questions'
 
 const STORAGE_KEY_ASSESSMENTS = 'ava_supabase_assessments'
 const STORAGE_KEY_QUIZ_ATTEMPTS = 'ava_supabase_quiz_attempts'
 const STORAGE_BUCKET = 'lesson-materials'
 const STORAGE_FILE_PATH = 'assessments/assessments_db.json'
 const STORAGE_ATTEMPTS_FILE_PATH = 'assessments/quiz_attempts_db.json'
-const LEGACY_FAKE_IDS = new Set(['asm-101', 'asm-102'])
+const LEGACY_FAKE_IDS = new Set(['asm-101', 'asm-102', 'official-lesson-1-1'])
 
 export interface QuizAttemptResult {
   id: string
@@ -66,7 +65,13 @@ function normalizeQuestions(questions: AssessmentQuestion[]): AssessmentQuestion
 
 function filterOutLegacyFakeAssessments(items: SupabaseAssessment[]): SupabaseAssessment[] {
   if (!Array.isArray(items)) return []
-  return items.filter((item) => item && item.id && !LEGACY_FAKE_IDS.has(item.id))
+  return items.filter(
+    (item) =>
+      item &&
+      item.id &&
+      !LEGACY_FAKE_IDS.has(item.id) &&
+      item.lesson_id !== 'les-01',
+  )
 }
 
 class SupabaseAssessmentService {
@@ -390,80 +395,66 @@ class SupabaseAssessmentService {
   }
 
   /**
-   * Busca a avaliação vinculada diretamente a uma aula (lesson_id)
+   * Busca exclusivamente a avaliação vinculada ao id exato da aula atual (.eq('lesson_id', lessonId))
    */
   async getAssessmentByLessonId(lessonId: string): Promise<SupabaseAssessment | null> {
-    if (!lessonId) return null
-    const list = await this.getAssessments()
-    return list.find((a) => a.lesson_id === lessonId) || null
+    if (!lessonId || !String(lessonId).trim()) return null
+    const targetId = String(lessonId).trim()
+
+    // 1. Consulta diretamente no Supabase filtrando estritamente por .eq('lesson_id', targetId)
+    try {
+      const { data: quizRows, error: quizErr } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('lesson_id', targetId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (!quizErr && Array.isArray(quizRows) && quizRows.length > 0) {
+        const row = quizRows[0] as Record<string, any>
+        if (String(row.lesson_id || '') === targetId) {
+          return {
+            id: String(row.id),
+            course_id: String(row.course_id || ''),
+            discipline_id: String(row.discipline_id || ''),
+            lesson_id: targetId,
+            scope_type: 'lesson_specific',
+            title: String(row.title || 'Avaliação Oficial da Aula'),
+            description: row.description ? String(row.description) : '',
+            max_score: Number(row.max_score) || 10,
+            passing_score: Number(row.passing_score) || 7,
+            max_attempts: Number(row.max_attempts) || 3,
+            time_limit_minutes: row.time_limit_minutes ? Number(row.time_limit_minutes) : 30,
+            questions: normalizeQuestions(Array.isArray(row.questions) ? row.questions : []),
+            created_at: String(row.created_at || new Date().toISOString()),
+          }
+        }
+      }
+    } catch {
+      // prossegue para verificação na base de avaliações
+    }
+
+    // 2. Filtra estritamente pelo lesson_id exato da aula aberta (nunca puxa de outra aula ou disciplina)
+    const list = await this.getAssessments({ lesson_id: targetId })
+    const exactMatch = list.find(
+      (a) => Boolean(a.lesson_id) && String(a.lesson_id).trim() === targetId,
+    )
+    return exactMatch || null
   }
 
   /**
-   * Busca a avaliação correspondente para exibição na Sala de Aula do Aluno ou Pré-visualização:
-   * 1º Prioridade: Avaliação vinculada diretamente ao lesson_id da aula
-   * 2º Prioridade: Avaliação vinculada ao discipline_id da aula
-   * 3º Prioridade: Avaliação vinculada ao course_id da aula (se não houver discipline_id)
+   * Busca exclusivamente a avaliação vinculada ao lesson_id da aula atual.
+   * Nunca retorna provas de outras aulas ou disciplinas anteriores.
    */
   async getAssessmentForLesson(params: {
     lesson_id?: string
     discipline_id?: string
     course_id?: string
   }): Promise<SupabaseAssessment | null> {
-    const all = await this.getAssessments()
-    if (all.length === 0) return null
-
-    if (params.lesson_id) {
-      const byLesson = all.find((a) => a.lesson_id && a.lesson_id === params.lesson_id)
-      if (byLesson && byLesson.questions.length > 0) {
-        return byLesson
-      }
+    if (!params.lesson_id || !String(params.lesson_id).trim()) {
+      return null
     }
-
-    if (params.discipline_id) {
-      const byDiscipline = all.find(
-        (a) =>
-          a.discipline_id === params.discipline_id &&
-          (!a.lesson_id || a.lesson_id === params.lesson_id || a.scope_type === 'discipline_final'),
-      )
-      if (byDiscipline && byDiscipline.questions.length > 0) {
-        return byDiscipline
-      }
-
-      const anyInDiscipline = all.find((a) => a.discipline_id === params.discipline_id)
-      if (anyInDiscipline && anyInDiscipline.questions.length > 0) {
-        return anyInDiscipline
-      }
-    }
-
-    if (params.course_id) {
-      const byCourse = all.find(
-        (a) => a.course_id === params.course_id && a.scope_type === 'discipline_final',
-      )
-      if (byCourse && byCourse.questions.length > 0) {
-        return byCourse
-      }
-    }
-
-    if (all.length > 0 && all[0].questions.length > 0) {
-      return all[0]
-    }
-
-    // Fallback oficial: 15 Questões Interativas FOH vs. BOH da Hemingway School para nunca deixar a Página 4 sem quiz clicável
-    return {
-      id: 'official-lesson-1-1',
-      course_id: params.course_id || '',
-      discipline_id: params.discipline_id || '',
-      lesson_id: params.lesson_id,
-      scope_type: 'lesson_specific',
-      title: 'Avaliação Oficial da Aula',
-      description: 'Responda às questões de múltipla escolha (A a E) e clique em Finalizar Prova para calcular sua nota e visualizar o gabarito comentado.',
-      max_score: 10,
-      passing_score: 7,
-      max_attempts: 3,
-      time_limit_minutes: 45,
-      questions: LESSON_1_1_QUESTIONS,
-      created_at: new Date().toISOString(),
-    }
+    return await this.getAssessmentByLessonId(String(params.lesson_id).trim())
   }
 
   /**

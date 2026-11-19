@@ -35,6 +35,7 @@ export interface SmartExamImporterModalProps {
   defaultLessonId?: string
   activeCourseId?: string
   activeDisciplineId?: string
+  onEnsureLessonId?: () => Promise<string | undefined>
   onQuestionsImported?: (questions: AssessmentQuestion[], title?: string) => void
   onSaveToDatabaseSuccess?: (assessment: SupabaseAssessment) => void
 }
@@ -44,6 +45,7 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
   onClose,
   onQuestionsImported,
   onSaveToDatabaseSuccess,
+  onEnsureLessonId,
   courses = [],
   disciplines = [],
   defaultCourseId,
@@ -157,7 +159,10 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
     try {
       const targetCourseId = defaultCourseId || activeCourseId || (courses.length > 0 ? courses[0].id : '')
       const targetDisciplineId = defaultDisciplineId || activeDisciplineId || (disciplines.length > 0 ? disciplines[0].id : '')
-      const targetLessonId = defaultLessonId || undefined
+      let targetLessonId = defaultLessonId || undefined
+      if (!targetLessonId && onEnsureLessonId) {
+        targetLessonId = await onEnsureLessonId()
+      }
 
       let saved: SupabaseAssessment
       if (targetLessonId) {
@@ -165,7 +170,7 @@ export const SmartExamImporterModal: React.FC<SmartExamImporterModalProps> = ({
           lesson_id: targetLessonId,
           course_id: targetCourseId,
           discipline_id: targetDisciplineId,
-          lesson_title: previewTitle.trim() || 'Avaliação Importada',
+          lesson_title: previewTitle.trim() || 'Avaliação Oficial da Aula',
           questions: parsedQuestions,
         })
         if (!res) throw new Error('Falha ao vincular questões à aula.')

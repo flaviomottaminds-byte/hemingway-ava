@@ -159,18 +159,22 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
       )
       setErrorMessage(null)
       setSuccessMessage(null)
+      // Zera imediatamente as questões antes de buscar as questões do lesson_id atual
+      setLessonQuestions([])
+      setExpandedQuestionIdx(null)
 
       if (lesson.id) {
+        const currentId = String(lesson.id)
         assessmentService
-          .getAssessmentByLessonId(lesson.id)
+          .getAssessmentByLessonId(currentId)
           .then((asm) => {
-            setLessonQuestions(asm?.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
-            setExpandedQuestionIdx(null)
+            if (currentLessonIdRef.current === currentId && asm && String(asm.lesson_id) === currentId) {
+              setLessonQuestions(asm.questions ? JSON.parse(JSON.stringify(asm.questions)) : [])
+            } else if (currentLessonIdRef.current === currentId) {
+              setLessonQuestions([])
+            }
           })
           .catch(() => setLessonQuestions([]))
-      } else {
-        setLessonQuestions([])
-        setExpandedQuestionIdx(null)
       }
     } else {
       setTitle('')
@@ -1374,13 +1378,66 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
         defaultCourseId={courseId || (courses[0]?.id ?? '')}
         defaultDisciplineId={disciplineId || (disciplines[0]?.id ?? '')}
         defaultLessonId={effectiveLessonId}
-        onQuestionsImported={(importedQuestions) => {
+        onEnsureLessonId={async () => {
+          const existingId = currentLessonIdRef.current || currentLessonId || lesson?.id
+          if (existingId) return existingId
+          const created = await lessonService.createLesson({
+            title: title.trim() || 'Nova Aula',
+            course_id: courseId || (courses[0]?.id ?? ''),
+            discipline_id: disciplineId || (disciplines[0]?.id ?? 'disc-03'),
+            sequence_order: Number(sequenceOrder) || 1,
+            duration_minutes: Number(durationMinutes) || 20,
+            content_text: contentText,
+            video_url: videoUrl.trim(),
+            materials: lesson?.materials || [],
+            pdf_url: pdfUrl || undefined,
+            pdf_name: pdfName || undefined,
+            useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
+            slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
+            slides_url_pt: slidesUrlPt || undefined,
+            slides_url_en: slidesUrlEn || undefined,
+            slides_url_es: slidesUrlEs || undefined,
+          })
+          currentLessonIdRef.current = created.id
+          setCurrentLessonId(created.id)
+          onSaved(created)
+          return created.id
+        }}
+        onQuestionsImported={async (importedQuestions) => {
           setLessonQuestions(importedQuestions)
           setExpandedQuestionIdx(0)
-          if (effectiveLessonId) {
-            assessmentService
+          let targetId = currentLessonIdRef.current || currentLessonId || lesson?.id
+          if (!targetId) {
+            try {
+              const created = await lessonService.createLesson({
+                title: title.trim() || 'Nova Aula',
+                course_id: courseId || (courses[0]?.id ?? ''),
+                discipline_id: disciplineId || (disciplines[0]?.id ?? 'disc-03'),
+                sequence_order: Number(sequenceOrder) || 1,
+                duration_minutes: Number(durationMinutes) || 20,
+                content_text: contentText,
+                video_url: videoUrl.trim(),
+                materials: lesson?.materials || [],
+                pdf_url: pdfUrl || undefined,
+                pdf_name: pdfName || undefined,
+                useful_links: usefulLinks.filter((l) => l.title?.trim() || l.url?.trim()),
+                slides_url: slidesUrlPt || slidesUrlEn || slidesUrlEs || undefined,
+                slides_url_pt: slidesUrlPt || undefined,
+                slides_url_en: slidesUrlEn || undefined,
+                slides_url_es: slidesUrlEs || undefined,
+              })
+              currentLessonIdRef.current = created.id
+              setCurrentLessonId(created.id)
+              onSaved(created)
+              targetId = created.id
+            } catch {
+              // prossegue
+            }
+          }
+          if (targetId) {
+            await assessmentService
               .saveLessonQuizQuestions({
-                lesson_id: effectiveLessonId,
+                lesson_id: targetId,
                 course_id: courseId || (courses[0]?.id ?? ''),
                 discipline_id: disciplineId || (disciplines[0]?.id ?? ''),
                 lesson_title: title || lesson?.title || 'Aula',
@@ -1389,7 +1446,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
               .catch(() => {})
           }
           setSuccessMessage(
-            `${importedQuestions.length} questões importadas e vinculadas a esta aula!`,
+            `${importedQuestions.length} questões importadas e vinculadas ao lesson_id desta aula!`,
           )
         }}
         onSaveToDatabaseSuccess={(saved) => {
@@ -1397,7 +1454,7 @@ export const LessonEditModal: React.FC<LessonEditModalProps> = ({
             setLessonQuestions(saved.questions)
             setExpandedQuestionIdx(0)
             setSuccessMessage(
-              `${saved.questions.length} questões salvas e vinculadas a esta aula!`,
+              `${saved.questions.length} questões salvas e vinculadas ao lesson_id desta aula!`,
             )
           }
         }}

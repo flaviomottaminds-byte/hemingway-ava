@@ -21,7 +21,6 @@ import {
 import type { SupabaseLesson, UsefulLink, AssessmentQuestion } from '../../../types'
 import { extractYouTubeId } from '../../../services/lessonService'
 import { assessmentService } from '../../../services/assessmentService'
-import { LESSON_1_1_QUESTIONS } from '../../../data/lesson1_1_questions'
 import { SlideViewer } from '../../classroom/components/SlideViewer'
 
 export interface StudentLessonPreviewModalProps {
@@ -118,7 +117,7 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
 
   // Todos os Hooks no topo (NUNCA após um return condicional)
   const [previewLang, setPreviewLang] = useState<'pt' | 'en' | 'es'>('pt')
-  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>(LESSON_1_1_QUESTIONS)
+  const [quizQuestions, setQuizQuestions] = useState<AssessmentQuestion[]>([])
   const [maxAttempts, setMaxAttempts] = useState<number>(3)
   const [attemptsUsed, setAttemptsUsed] = useState<number>(0)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
@@ -160,14 +159,15 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
     }
   }, [isOpen])
 
-  // Carrega questões reais da avaliação associadas à aula (prioriza as questões em edição no formulário da aula)
+  // Carrega exclusivamente as questões vinculadas ao lesson_id da aula atual (zera o estado antes de carregar)
   useEffect(() => {
-    if (!isOpen || !lesson) return
-
+    setQuizQuestions([])
     setSelectedAnswers({})
     setIsQuizSubmitted(false)
     setResultSavedInDb(false)
     setAttemptsUsed(0)
+
+    if (!isOpen || !lesson) return
 
     if (inlineQuestions && inlineQuestions.length > 0) {
       setQuizQuestions(inlineQuestions)
@@ -175,31 +175,44 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
       return
     }
 
+    if (!lessonId) {
+      setQuizQuestions([])
+      setIsLoadingQuiz(false)
+      return
+    }
+
+    let isActive = true
     setIsLoadingQuiz(true)
     assessmentService
-      .getAssessmentForLesson({
-        lesson_id: lessonId,
-        discipline_id: disciplineId || undefined,
-        course_id: courseId || undefined,
-      })
+      .getAssessmentByLessonId(lessonId)
       .then((found) => {
-        if (found && Array.isArray(found.questions) && found.questions.length > 0) {
+        if (!isActive) return
+        if (
+          found &&
+          String(found.lesson_id) === String(lessonId) &&
+          Array.isArray(found.questions) &&
+          found.questions.length > 0
+        ) {
           setQuizQuestions(found.questions)
           setMaxAttempts(found.max_attempts || 3)
         } else {
-          setQuizQuestions(LESSON_1_1_QUESTIONS)
+          setQuizQuestions([])
           setMaxAttempts(3)
         }
       })
       .catch(() => {
-        setQuizQuestions(LESSON_1_1_QUESTIONS)
+        if (isActive) setQuizQuestions([])
       })
       .finally(() => {
-        setIsLoadingQuiz(false)
+        if (isActive) setIsLoadingQuiz(false)
       })
-  }, [isOpen, lessonId, courseId, disciplineId, inlineQuestions, lessonTitle])
 
-  // Trilha paginada passo a passo (Vídeo -> Slides Gamma / Apostila -> Links Úteis -> Prova/Quiz)
+    return () => {
+      isActive = false
+    }
+  }, [isOpen, lessonId, inlineQuestions, lesson])
+
+  // Trilha paginada passo a passo (Vídeo -> Slides / Apostila -> Links Úteis -> Prova/Quiz)
   const activeStages = useMemo(() => {
     const stages: {
       id: 'video' | 'slides_apostila' | 'links_materiais' | 'avaliacao_quiz'
@@ -217,9 +230,9 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
       },
       {
         id: 'slides_apostila',
-        title: 'Página 2 — Slides Gamma & Apostila',
+        title: 'Página 2 — Apresentação de Slides & Apostila',
         shortTitle: 'Slides & Apostila',
-        description: 'Acesse os slides interativos no Gamma.app e leia a apostila oficial do curso.',
+        description: 'Acesse a apresentação de slides da aula e leia a apostila oficial do curso.',
         icon: Presentation,
       },
       {
@@ -579,7 +592,7 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
                   <span className="flex items-center gap-1.5">
                     <span className="font-bold text-[#0F1B2F]">Navegação Guiada:</span>
                     <span>
-                      Ao concluir o vídeo, clique em &quot;Próxima Página&quot; para avançar aos slides Gamma e apostila.
+                      Ao concluir o vídeo, clique em &quot;Próxima Página&quot; para avançar aos slides e apostila.
                     </span>
                   </span>
                   <button
@@ -614,7 +627,7 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
                       }`}
                     >
                       <Presentation className="w-3.5 h-3.5 text-[#C59E5D]" />
-                      <span>Apresentação de Slides (Gamma.app)</span>
+                      <span>Apresentação de Slides</span>
                     </button>
                     <button
                       type="button"
@@ -845,6 +858,16 @@ export const StudentLessonPreviewModal: React.FC<StudentLessonPreviewModalProps>
               {isLoadingQuiz ? (
                 <div className="p-8 text-center text-sm font-semibold text-slate-500 bg-white rounded-3xl border border-slate-200">
                   Carregando Avaliação Oficial da Aula...
+                </div>
+              ) : quizQuestions.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2">
+                  <Award className="w-10 h-10 text-slate-400 mx-auto" />
+                  <h3 className="text-sm sm:text-base font-bold text-[#0F1B2F]">
+                    Nenhuma avaliação cadastrada para esta aula ainda
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Importe as questões desta aula (.docx, .pdf ou texto) dentro do formulário de edição da aula para disponibilizar a Avaliação Oficial aos alunos.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-5">
