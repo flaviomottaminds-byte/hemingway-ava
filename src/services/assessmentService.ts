@@ -4,11 +4,30 @@ import type {
   AssessmentScopeType,
 } from '../types'
 import { supabase } from '../lib/supabase'
+import { LESSON_1_1_QUESTIONS } from '../data/lesson1_1_questions'
 
 const STORAGE_KEY_ASSESSMENTS = 'ava_supabase_assessments'
+const STORAGE_KEY_QUIZ_ATTEMPTS = 'ava_supabase_quiz_attempts'
 const STORAGE_BUCKET = 'lesson-materials'
 const STORAGE_FILE_PATH = 'assessments/assessments_db.json'
+const STORAGE_ATTEMPTS_FILE_PATH = 'assessments/quiz_attempts_db.json'
 const LEGACY_FAKE_IDS = new Set(['asm-101', 'asm-102'])
+
+export interface QuizAttemptResult {
+  id: string
+  lesson_id?: string
+  discipline_id?: string
+  course_id?: string
+  student_id?: string
+  student_name?: string
+  score: number
+  max_score: number
+  correct_count: number
+  total_questions: number
+  attempt_number: number
+  answers: Record<string, string>
+  created_at: string
+}
 
 export interface CreateAssessmentDTO {
   course_id: string
@@ -425,7 +444,116 @@ class SupabaseAssessmentService {
       }
     }
 
-    return null
+    if (all.length > 0 && all[0].questions.length > 0) {
+      return all[0]
+    }
+
+    // Fallback oficial: 15 Questões Interativas FOH vs. BOH da Hemingway School para nunca deixar a Página 4 sem quiz clicável
+    return {
+      id: 'official-lesson-1-1',
+      course_id: params.course_id || '',
+      discipline_id: params.discipline_id || '',
+      lesson_id: params.lesson_id,
+      scope_type: 'lesson_specific',
+      title: 'Avaliação Oficial da Aula',
+      description: 'Responda às questões de múltipla escolha (A a E) e clique em Finalizar Prova para calcular sua nota e visualizar o gabarito comentado.',
+      max_score: 10,
+      passing_score: 7,
+      max_attempts: 3,
+      time_limit_minutes: 45,
+      questions: LESSON_1_1_QUESTIONS,
+      created_at: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Salva o resultado da tentativa do aluno na prova no Supabase (vinculado ao aluno e à aula)
+   */
+  async saveQuizAttemptResult(params: {
+    lesson_id?: string
+    discipline_id?: string
+    course_id?: string
+    student_id?: string
+    student_name?: string
+    score: number
+    max_score?: number
+    correct_count: number
+    total_questions: number
+    attempt_number?: number
+    answers: Record<string, string>
+  }): Promise<QuizAttemptResult> {
+    let resolvedStudentId = params.student_id
+    let resolvedStudentName = params.student_name
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session?.user) {
+        resolvedStudentId = resolvedStudentId || session.user.id
+        resolvedStudentName =
+          resolvedStudentName ||
+          String(session.user.user_metadata?.full_name || session.user.email || 'Aluno')
+      }
+    } catch {
+      // fallback local
+    }
+
+    const attempt: QuizAttemptResult = {
+      id: `att-${Date.now().toString(36)}`,
+      lesson_id: params.lesson_id,
+      discipline_id: params.discipline_id,
+      course_id: params.course_id,
+      student_id: resolvedStudentId || 'student-ava',
+      student_name: resolvedStudentName || 'Estudante Hemingway School',
+      score: Number(params.score.toFixed(1)),
+      max_score: params.max_score ?? 10,
+      correct_count: params.correct_count,
+      total_questions: params.total_questions,
+      attempt_number: params.attempt_number ?? 1,
+      answers: params.answers,
+      created_at: new Date().toISOString(),
+    }
+
+    // 1. Tenta gravar em tabela relacional quiz_attempts se existir
+    try {
+      await supabase.from('quiz_attempts').insert([
+        {
+          lesson_id: attempt.lesson_id || null,
+          discipline_id: attempt.discipline_id || null,
+          course_id: attempt.course_id || null,
+          student_id: attempt.student_id,
+          score: attempt.score,
+          max_score: attempt.max_score,
+          correct_count: attempt.correct_count,
+          total_questions: attempt.total_questions,
+          attempt_number: attempt.attempt_number,
+          answers: attempt.answers,
+        },
+      ])
+    } catch {
+      // prossegue para Storage + localStorage
+    }
+
+    // 2. Salva no localStorage e no Supabase Storage (lesson-materials)
+    try {
+      const rawLocal = localStorage.getItem(STORAGE_KEY_QUIZ_ATTEMPTS)
+      const list: QuizAttemptResult[] = rawLocal ? JSON.parse(rawLocal) : []
+      const updated = [attempt, ...list].slice(0, 500)
+      localStorage.setItem(STORAGE_KEY_QUIZ_ATTEMPTS, JSON.stringify(updated))
+
+      const blob = new Blob([JSON.stringify(updated, null, 2)], {
+        type: 'application/json',
+      })
+      await supabase.storage.from(STORAGE_BUCKET).upload(STORAGE_ATTEMPTS_FILE_PATH, blob, {
+        upsert: true,
+        contentType: 'application/json',
+        cacheControl: '0',
+      })
+    } catch (e) {
+      console.warn('Aviso ao persistir resultado da tentativa no Supabase Storage:', e)
+    }
+
+    return attempt
   }
 
   /**
